@@ -1,6 +1,9 @@
 const {
     EmbedBuilder
 } = require('discord.js');
+const {
+    createPromotionButtons
+} = require('./promotionButtons');
 
 const PROMOTION_CHANNEL_ID = '1454118050163982436';
 
@@ -133,7 +136,15 @@ async function checkPromotion(member, points, department) {
                 .setColor('Orange')
                 .setTimestamp();
 
-            channel.send({ embeds: [embed] });
+            channel.send({
+                embeds: [embed],
+                components: [
+                    createPromotionButtons(
+                        '1516991623362379826',
+                        '1507095924952928346'
+                    )
+                ]
+            });
             return;
         }
 
@@ -150,7 +161,15 @@ async function checkPromotion(member, points, department) {
                 .setColor('Orange')
                 .setTimestamp();
 
-            channel.send({ embeds: [embed] });
+            channel.send({
+                embeds: [embed],
+                components: [
+                    createPromotionButtons(
+                        '1507095924952928346',
+                        '1410364972676153505'
+                    )
+                ]
+            });
             return;
         }
 
@@ -217,7 +236,15 @@ async function checkPromotion(member, points, department) {
                 .setColor('Orange')
                 .setTimestamp();
 
-            channel.send({ embeds: [embed] });
+            channel.send({
+                embeds: [embed],
+                components: [
+                    createPromotionButtons(
+                        '1517187339804348617',
+                        '1507096025523949840'
+                    )
+                ]
+            });
             return;
         }
 
@@ -234,7 +261,15 @@ async function checkPromotion(member, points, department) {
                 .setColor('Orange')
                 .setTimestamp();
 
-            channel.send({ embeds: [embed] });
+            channel.send({
+                embeds: [embed],
+                components: [
+                    createPromotionButtons(
+                        '1507096025523949840',
+                        '1507384597929787485'
+                    )
+                ]
+            });
             return;
         }
 
