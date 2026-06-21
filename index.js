@@ -8,7 +8,8 @@ const {
     Client,
     Collection,
     GatewayIntentBits,
-    Events
+    Events,
+    EmbedBuilder
 } = require('discord.js');
 
 const client = new Client({
@@ -51,6 +52,95 @@ client.on(Events.InteractionCreate, async interaction => {
                 ephemeral: true
             });
 
+        }
+
+        const member = interaction.message.mentions.members.first();
+
+        if (!member) {
+
+            return interaction.reply({
+                content: '❌ لم يتم العثور على العضو.',
+                ephemeral: true
+            });
+
+        }
+
+        if (interaction.customId.startsWith('accept_')) {
+
+            const parts = interaction.customId.split('_');
+
+            const roleId = parts[1];
+            const oldRoleId = parts[2];
+
+            try {
+
+                if (oldRoleId !== 'none') {
+                    await member.roles.remove(oldRoleId);
+                }
+
+                await member.roles.add(roleId);
+
+                const embed = new EmbedBuilder()
+                    .setTitle('✅ تم اعتماد الترقية')
+                    .addFields(
+                        {
+                            name: '👤 العضو',
+                            value: `<@${member.id}>`
+                        },
+                        {
+                            name: '🏅 الرتبة الجديدة',
+                            value: `<@&${roleId}>`
+                        },
+                        {
+                            name: '👮 اعتمد بواسطة',
+                            value: `<@${interaction.user.id}>`
+                        }
+                    )
+                    .setColor('Green')
+                    .setTimestamp();
+
+                await interaction.update({
+                    embeds: [embed],
+                    components: []
+                });
+
+            } catch (err) {
+
+                console.error(err);
+
+                await interaction.reply({
+                    content: '❌ حدث خطأ أثناء الترقية.',
+                    ephemeral: true
+                });
+
+            }
+
+            return;
+        }
+
+        if (interaction.customId.startsWith('reject_')) {
+
+            const embed = new EmbedBuilder()
+                .setTitle('❌ تم رفض الترقية')
+                .addFields(
+                    {
+                        name: '👤 العضو',
+                        value: `<@${member.id}>`
+                    },
+                    {
+                        name: '👮 تم الرفض بواسطة',
+                        value: `<@${interaction.user.id}>`
+                    }
+                )
+                .setColor('Red')
+                .setTimestamp();
+
+            await interaction.update({
+                embeds: [embed],
+                components: []
+            });
+
+            return;
         }
 
         return;
