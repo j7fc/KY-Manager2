@@ -4,22 +4,20 @@ const {
     ButtonStyle
 } = require('discord.js');
 
-function createPromotionButtons(roleId, oldRoleId) {
+function createPromotionButtons(userId, roleId, oldRoleId) {
 
-    const row = new ActionRowBuilder()
+    return new ActionRowBuilder()
         .addComponents(
             new ButtonBuilder()
-                .setCustomId(`accept_${roleId}_${oldRoleId}`)
+                .setCustomId(`accept_${userId}_${roleId}_${oldRoleId}`)
                 .setLabel('قبول')
                 .setStyle(ButtonStyle.Success),
 
             new ButtonBuilder()
-                .setCustomId(`reject_${roleId}`)
+                .setCustomId(`reject_${userId}`)
                 .setLabel('رفض')
                 .setStyle(ButtonStyle.Danger)
         );
-
-    return row;
 }
 
 module.exports = {

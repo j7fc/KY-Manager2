@@ -140,9 +140,10 @@ async function checkPromotion(member, points, department) {
                 embeds: [embed],
                 components: [
                     createPromotionButtons(
-                        '1516991623362379826',
-                        '1507095924952928346'
-                    )
+    member.id,
+    '1516991623362379826',
+    '1507095924952928346'
+)
                 ]
             });
             return;
@@ -165,9 +166,10 @@ async function checkPromotion(member, points, department) {
                 embeds: [embed],
                 components: [
                     createPromotionButtons(
-                        '1507095924952928346',
-                        '1410364972676153505'
-                    )
+    member.id,
+    '1507095924952928346',
+    '1410364972676153505'
+)
                 ]
             });
             return;
@@ -240,9 +242,10 @@ async function checkPromotion(member, points, department) {
                 embeds: [embed],
                 components: [
                     createPromotionButtons(
-                        '1517187339804348617',
-                        '1507096025523949840'
-                    )
+    member.id,
+    '1517187339804348617',
+    '1507096025523949840'
+)
                 ]
             });
             return;
@@ -265,9 +268,10 @@ async function checkPromotion(member, points, department) {
                 embeds: [embed],
                 components: [
                     createPromotionButtons(
-                        '1507096025523949840',
-                        '1507384597929787485'
-                    )
+    member.id,
+    '1507096025523949840',
+    '1507384597929787485'
+)
                 ]
             });
             return;

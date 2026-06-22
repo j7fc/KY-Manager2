@@ -68,56 +68,63 @@ client.on(Events.InteractionCreate, async interaction => {
 
         if (interaction.customId.startsWith('accept_')) {
 
-            const parts = interaction.customId.split('_');
+```
+const parts = interaction.customId.split('_');
 
-            const roleId = parts[1];
-            const oldRoleId = parts[2];
+const userId = parts[1];
+const roleId = parts[2];
+const oldRoleId = parts[3];
 
-            try {
+const member = await interaction.guild.members.fetch(userId);
 
-                if (oldRoleId !== 'none') {
-                    await member.roles.remove(oldRoleId);
-                }
+try {
 
-                await member.roles.add(roleId);
+    if (oldRoleId !== 'none') {
+        await member.roles.remove(oldRoleId);
+    }
 
-                const embed = new EmbedBuilder()
-                    .setTitle('✅ تم اعتماد الترقية')
-                    .addFields(
-                        {
-                            name: '👤 العضو',
-                            value: `<@${member.id}>`
-                        },
-                        {
-                            name: '🏅 الرتبة الجديدة',
-                            value: `<@&${roleId}>`
-                        },
-                        {
-                            name: '👮 اعتمد بواسطة',
-                            value: `<@${interaction.user.id}>`
-                        }
-                    )
-                    .setColor('Green')
-                    .setTimestamp();
+    await member.roles.add(roleId);
 
-                await interaction.update({
-                    embeds: [embed],
-                    components: []
-                });
-
-            } catch (err) {
-
-                console.error(err);
-
-                await interaction.reply({
-                    content: '❌ حدث خطأ أثناء الترقية.',
-                    ephemeral: true
-                });
-
+    const embed = new EmbedBuilder()
+        .setTitle('✅ تم اعتماد الترقية')
+        .addFields(
+            {
+                name: '👤 العضو',
+                value: `<@${member.id}>`
+            },
+            {
+                name: '🏅 الرتبة الجديدة',
+                value: `<@&${roleId}>`
+            },
+            {
+                name: '👮 اعتمد بواسطة',
+                value: `<@${interaction.user.id}>`
             }
+        )
+        .setColor('Green')
+        .setTimestamp();
 
-            return;
-        }
+    await interaction.update({
+        embeds: [embed],
+        components: []
+    });
+
+} catch (err) {
+
+    console.error(err);
+
+    await interaction.reply({
+        content: '❌ حدث خطأ أثناء الترقية.',
+        ephemeral: true
+    });
+
+}
+
+return;
+```
+
+}
+
 
         if (interaction.customId.startsWith('reject_')) {
 
