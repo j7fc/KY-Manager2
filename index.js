@@ -40,9 +40,9 @@ client.on(Events.InteractionCreate, async interaction => {
 
     if (interaction.isButton()) {
 
+        // قائمة الأشخاص المصرح لهم بضغط أزرار القبول والرفض (تم وضع الآيدي الخاص بك هنا)
         const ALLOWED_USERS = [
-            '1391032193026883754',
-            '1391112056706568333'
+            '1229374664107884597' // حسابك الخاص والمصرح له بضغط الأزرار
         ];
 
         if (!ALLOWED_USERS.includes(interaction.user.id)) {
