@@ -7,8 +7,7 @@ const db = require('../database');
 const { checkPromotion } = require('../promotionSystem');
 
 const ALLOWED_ROLES = [
-    '1391032193026883754',
-    '1391112056706568333'
+    '1229374664107884597'
 ];
 
 module.exports = {
