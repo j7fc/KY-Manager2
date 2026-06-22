@@ -4,8 +4,7 @@ const {
 } = require('discord.js');
 
 const ALLOWED_USERS = [
-    '1391032193026883754',
-    '1391112056706568333'
+    '1229374664107884597'
 ];
 
 const ROLE_REPLACEMENTS = {
@@ -42,7 +41,16 @@ module.exports = {
 
     async execute(interaction) {
 
-        if (!ALLOWED_USERS.includes(interaction.user.id)) {
+        const ALLOWED_ROLES = [
+    '1391032193026883754',
+    '1391112056706568333'
+];
+
+const hasRole = interaction.member.roles.cache.some(role =>
+    ALLOWED_ROLES.includes(role.id)
+);
+
+if (!hasRole) {
             return interaction.reply({
                 content: '❌ لا تملك صلاحية استخدام هذا الأمر.',
                 ephemeral: true
