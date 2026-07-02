@@ -6,12 +6,13 @@ const {
 const db = require('../database');
 const { checkPromotion } = require('../promotionSystem');
 
+// تم تعديل المعرفات هنا لتكون معرفات رتب بدلاً من معرف حسابك الشخصي
 const ALLOWED_ROLES = [
-    '1229374664107884597'
+    '1391032193026883754',
+    '1391112056706568333'
 ];
 
 module.exports = {
-
     data: new SlashCommandBuilder()
         .setName('إضافة-نقاط')
         .setDescription('إضافة نقاط لعضو')
@@ -73,7 +74,6 @@ module.exports = {
                 }
 
                 if (!row) {
-
                     db.run(
                         'INSERT INTO users (userId, adminPoints, monitorPoints) VALUES (?, 0, 0)',
                         [user.id]
@@ -88,16 +88,13 @@ module.exports = {
                 let newPoints;
 
                 if (department === 'admin') {
-
                     newPoints = row.adminPoints + points;
 
                     db.run(
                         'UPDATE users SET adminPoints = ? WHERE userId = ?',
                         [newPoints, user.id]
                     );
-
                 } else {
-
                     newPoints = row.monitorPoints + points;
 
                     db.run(
@@ -118,16 +115,12 @@ module.exports = {
                 );
 
                 try {
-
-                    const member =
-                        await interaction.guild.members.fetch(user.id);
-
+                    const member = await interaction.guild.members.fetch(user.id);
                     await checkPromotion(
                         member,
                         newPoints,
                         department
                     );
-
                 } catch (e) {
                     console.error(e);
                 }
@@ -142,9 +135,7 @@ module.exports = {
                         },
                         {
                             name: '📂 القسم',
-                            value: department === 'admin'
-                                ? 'الإدارة'
-                                : 'الرقابة',
+                            value: department === 'admin' ? 'الإدارة' : 'الرقابة',
                             inline: true
                         },
                         {
@@ -173,10 +164,7 @@ module.exports = {
                 interaction.reply({
                     embeds: [embed]
                 });
-
             }
         );
-
     }
-
 };
