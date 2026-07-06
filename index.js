@@ -59,6 +59,63 @@ client.on(Events.InteractionCreate, async interaction => {
     if (interaction.isButton()) {
         console.log('Button Clicked By:', interaction.user.id);
 
+        // ==========================================
+        // 🎯 أولاً: تفاعل زر مسابقة التوقعات (متاح للجميع)
+        // ==========================================
+        if (interaction.customId.startsWith('predict_btn_')) {
+            const matchId = interaction.customId.split('_')[2];
+            const db = require('./predictions/database');
+
+            db.get(`SELECT * FROM matches WHERE matchId = ?`, [matchId], (err, match) => {
+                if (err || !match) {
+                    return interaction.reply({ content: '❌ لم يتم العثور على هذه المباراة.', ephemeral: true });
+                }
+
+                if (match.status !== 'open') {
+                    return interaction.reply({ content: '⏰ نأسف، تم إغلاق التوقعات لهذه المباراة نهائياً.', ephemeral: true });
+                }
+
+                // التحقق التلقائي من الوقت الحالي مقارنة بوقت الإغلاق المحدد
+                const closeTimestamp = Date.parse(match.matchTime);
+                if (Date.now() > closeTimestamp) {
+                    db.run(`UPDATE matches SET status = 'closed' WHERE matchId = ?`, [matchId]);
+                    return interaction.reply({ content: '⏰ تم إغلاق التوقعات لهذه المباراة تلقائياً لانتهاء الوقت المحدد.', ephemeral: true });
+                }
+
+                // فتح النافذة (Modal) للتوقع
+                const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+                
+                const modal = new ModalBuilder()
+                    .setCustomId(`predict_modal_${matchId}`)
+                    .setTitle('🎯 تقديم / تعديل التوقع');
+
+                const winnerInput = new TextInputBuilder()
+                    .setCustomId('predicted_winner')
+                    .setLabel(`الفائز (اكتب: اسم الفريق أو تعادل)`)
+                    .setPlaceholder(`مثال: ${match.team1} أو تعادل`)
+                    .setStyle(TextInputStyle.Short)
+                    .setRequired(true);
+
+                const scoreInput = new TextInputBuilder()
+                    .setCustomId('predicted_score')
+                    .setLabel('النتيجة المتوقعة (أرقام فقط)')
+                    .setPlaceholder('مثال: 2-1')
+                    .setStyle(TextInputStyle.Short)
+                    .setRequired(true);
+
+                modal.addComponents(
+                    new ActionRowBuilder().addComponents(winnerInput),
+                    new ActionRowBuilder().addComponents(scoreInput)
+                );
+
+                interaction.showModal(modal);
+            });
+            return;
+        }
+
+        // ==========================================
+        // 👮 ثانياً: أزرار الإدارة والترقيات القديمة (مغلقة بالصلاحيات)
+        // ==========================================
         const ALLOWED_USERS = [
             '1229374664107884597'
         ];
@@ -89,18 +146,9 @@ client.on(Events.InteractionCreate, async interaction => {
                 const embed = new EmbedBuilder()
                     .setTitle('✅ تم اعتماد الترقية')
                     .addFields(
-                        {
-                            name: '👤 العضو',
-                            value: `<@${member.id}>`
-                        },
-                        {
-                            name: '🏅 الرتبة الجديدة',
-                            value: `<@&${roleId}>`
-                        },
-                        {
-                            name: '👮 اعتمد بواسطة',
-                            value: `<@${interaction.user.id}>`
-                        }
+                        { name: '👤 العضو', value: `<@${member.id}>` },
+                        { name: '🏅 الرتبة الجديدة', value: `<@&${roleId}>` },
+                        { name: '👮 اعتمد بواسطة', value: `<@${interaction.user.id}>` }
                     )
                     .setColor('Green')
                     .setTimestamp();
@@ -131,14 +179,8 @@ client.on(Events.InteractionCreate, async interaction => {
                 const embed = new EmbedBuilder()
                     .setTitle('❌ تم رفض الترقية')
                     .addFields(
-                        {
-                            name: '👤 العضو',
-                            value: `<@${member.id}>`
-                        },
-                        {
-                            name: '👮 تم الرفض بواسطة',
-                            value: `<@${interaction.user.id}>`
-                        }
+                        { name: '👤 العضو', value: `<@${member.id}>` },
+                        { name: '👮 تم الرفض بواسطة', value: `<@${interaction.user.id}>` }
                     )
                     .setColor('Red')
                     .setTimestamp();
@@ -156,6 +198,37 @@ client.on(Events.InteractionCreate, async interaction => {
                 });
             }
             return;
+        }
+        return;
+    }
+
+    // ==========================================
+    // 📩 ثالثاً: استقبال بيانات الـ Modal وحفظها بالمنشن والـ ID
+    // ==========================================
+    if (interaction.isModalSubmit()) {
+        if (interaction.customId.startsWith('predict_modal_')) {
+            const matchId = interaction.customId.split('_')[2];
+            const winner = interaction.fields.getTextInputValue('predicted_winner').trim();
+            const score = interaction.fields.getTextInputValue('predicted_score').trim();
+            const db = require('./predictions/database');
+
+            db.run(
+                `INSERT INTO predictions (matchId, userId, winner, score) VALUES (?, ?, ?, ?)
+                 ON CONFLICT(matchId, userId) DO UPDATE SET winner = excluded.winner, score = excluded.score`,
+                [matchId, interaction.user.id, winner, score],
+                (err) => {
+                    if (err) {
+                        console.error(err);
+                        return interaction.reply({ content: '❌ حدث خطأ أثناء حفظ توقعك.', ephemeral: true });
+                    }
+                    
+                    // الرد بالمنشن تلقائياً
+                    return interaction.reply({
+                        content: `✅ <@${interaction.user.id}>، تم حفظ توقعك بنجاح للمباراة **#${matchId}**!\n🎯 **توقعك الحركي:** الفائز: \`${winner}\` | النتيجة: \`${score}\``,
+                        ephemeral: true
+                    });
+                }
+            );
         }
         return;
     }
