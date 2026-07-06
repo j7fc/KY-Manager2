@@ -1,10 +1,15 @@
 require('dotenv').config();
 require('./database');
-require('./Predictions/database'); // ✅ تعديل الحرف إلى كابيتال (Predictions) ليتوافق مع الـ Linux
 
+// --- الحل الذكي لضمان تشغيل مجلد التوقعات تلقائياً بدون مشاكل حروف Linux ---
 const fs = require('fs');
 const path = require('path');
-const http = require('http'); // استدعاء مكتبة HTTP لإنشاء خادم ويب وهمي
+const predictionsDir = fs.readdirSync(__dirname).find(f => f.toLowerCase() === 'predictions');
+if (predictionsDir) {
+    require(path.join(__dirname, predictionsDir, 'database'));
+} else {
+    console.error("❌ لم يتم العثور على مجلد التوقعات!");
+}
 
 const {
     Client,
@@ -64,7 +69,10 @@ client.on(Events.InteractionCreate, async interaction => {
         // ==========================================
         if (interaction.customId.startsWith('predict_btn_')) {
             const matchId = interaction.customId.split('_')[2];
-            const db = require('./Predictions/database'); // ✅ تعديل الحرف هنا أيضاً لكابيتال
+            
+            // جلب المسار بشكل ديناميكي لتفادي خطأ الحروف
+            const predictionsDirBtn = fs.readdirSync(__dirname).find(f => f.toLowerCase() === 'predictions');
+            const db = require(path.join(__dirname, predictionsDirBtn, 'database'));
 
             db.get(`SELECT * FROM matches WHERE matchId = ?`, [matchId], (err, match) => {
                 if (err || !match) {
@@ -210,7 +218,10 @@ client.on(Events.InteractionCreate, async interaction => {
             const matchId = interaction.customId.split('_')[2];
             const winner = interaction.fields.getTextInputValue('predicted_winner').trim();
             const score = interaction.fields.getTextInputValue('predicted_score').trim();
-            const db = require('./Predictions/database'); // ✅ تعديل الحرف هنا أيضاً لكابيتال
+            
+            // جلب المسار بشكل ديناميكي لتفادي خطأ الحروف
+            const predictionsDirModal = fs.readdirSync(__dirname).find(f => f.toLowerCase() === 'predictions');
+            const db = require(path.join(__dirname, predictionsDirModal, 'database'));
 
             db.run(
                 `INSERT INTO predictions (matchId, userId, winner, score) VALUES (?, ?, ?, ?)
