@@ -5,7 +5,7 @@ const {
     ButtonBuilder, 
     ButtonStyle 
 } = require('discord.js');
-const db = require('../predictions/database'); // استدعاء قاعدة البيانات المخصصة للتوقعات
+const db = require('../Predictions/database'); // استدعاء قاعدة البيانات المخصصة للتوقعات
 
 module.exports = {
     data: new SlashCommandBuilder()
