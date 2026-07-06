@@ -1,6 +1,6 @@
 require('dotenv').config();
 require('./database');
-require('./predictions/database'); // السطر المضاف لقاعدة بيانات التوقعات
+require('./Predictions/database'); // ✅ تعديل الحرف إلى كابيتال (Predictions) ليتوافق مع الـ Linux
 
 const fs = require('fs');
 const path = require('path');
@@ -64,7 +64,7 @@ client.on(Events.InteractionCreate, async interaction => {
         // ==========================================
         if (interaction.customId.startsWith('predict_btn_')) {
             const matchId = interaction.customId.split('_')[2];
-            const db = require('./predictions/database');
+            const db = require('./Predictions/database'); // ✅ تعديل الحرف هنا أيضاً لكابيتال
 
             db.get(`SELECT * FROM matches WHERE matchId = ?`, [matchId], (err, match) => {
                 if (err || !match) {
@@ -210,7 +210,7 @@ client.on(Events.InteractionCreate, async interaction => {
             const matchId = interaction.customId.split('_')[2];
             const winner = interaction.fields.getTextInputValue('predicted_winner').trim();
             const score = interaction.fields.getTextInputValue('predicted_score').trim();
-            const db = require('./predictions/database');
+            const db = require('./Predictions/database'); // ✅ تعديل الحرف هنا أيضاً لكابيتال
 
             db.run(
                 `INSERT INTO predictions (matchId, userId, winner, score) VALUES (?, ?, ?, ?)
