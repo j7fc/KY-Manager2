@@ -1,8 +1,10 @@
 require('dotenv').config();
 require('./database');
+require('./predictions/database'); // السطر المضاف لقاعدة بيانات التوقعات
 
 const fs = require('fs');
 const path = require('path');
+const http = require('http'); // استدعاء مكتبة HTTP لإنشاء خادم ويب وهمي
 
 const {
     Client,
@@ -13,22 +15,40 @@ const {
 } = require('discord.js');
 
 const client = new Client({
-    intents: [GatewayIntentBits.Guilds]
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMembers // إضافة هذا الـ Intent لجلب بيانات الأعضاء والرتب بشكل صحيح
+    ]
 });
 
 client.commands = new Collection();
 
+// --- بداية التعديل الجديد لقراءة الأوامر من المجلدات الفرعية ---
 const commandsPath = path.join(__dirname, 'commands');
-const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
 
-for (const file of commandFiles) {
-    const filePath = path.join(commandsPath, file);
-    const command = require(filePath);
+function loadCommands(dir) {
+    const files = fs.readdirSync(dir);
 
-    if (command.data) {
-        client.commands.set(command.data.name, command);
+    for (const file of files) {
+        const filePath = path.join(dir, file);
+
+        if (fs.statSync(filePath).isDirectory()) {
+            loadCommands(filePath);
+            continue;
+        }
+
+        if (!file.endsWith('.js')) continue;
+
+        const command = require(filePath);
+
+        if (command.data) {
+            client.commands.set(command.data.name, command);
+        }
     }
 }
+
+loadCommands(commandsPath);
+// --- نهاية التعديل الجديد ---
 
 client.once(Events.ClientReady, () => {
     console.log(`تم تشغيل البوت: ${client.user.tag}`);
@@ -155,6 +175,14 @@ client.on(Events.InteractionCreate, async interaction => {
             ephemeral: true
         });
     }
+});
+
+// تشغيل خادم ويب وهمي لـ Render لاستقبال طلبات الـ Ping ومنع السكون
+http.createServer((req, res) => {
+    res.write("Bot is running 24/7");
+    res.end();
+}).listen(8080, () => {
+    console.log("Web server is listening on port 8080");
 });
 
 client.login(process.env.TOKEN);
