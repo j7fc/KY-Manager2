@@ -5,7 +5,12 @@ const {
     ButtonBuilder, 
     ButtonStyle 
 } = require('discord.js');
-const db = require('../Predictions/database'); // استدعاء قاعدة البيانات المخصصة للتوقعات
+
+// --- حل ذكي ومضمون: جلب قاعدة البيانات من الـ require الرئيسي مباشرة لتفادي مشاكل الحروف ---
+const path = require('path');
+const fs = require('fs');
+const predictionsDir = fs.readdirSync(path.join(__dirname, '..')).find(f => f.toLowerCase() === 'predictions');
+const db = require(path.join(__dirname, '..', predictionsDir, 'database'));
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -48,27 +53,25 @@ module.exports = {
 
     async execute(interaction) {
         // --- حماية الصلاحيات والأمان ---
-        const ALLOWED_USER_ID = '1229374664107884597'; // الآيدي الخاص بك
-        const ALLOWED_ROLE_ID = '1511200506557632623'; // آيدي رتبة مسؤول المسابقات
+        const ALLOWED_USER_ID = '1229374664107884597'; 
+        const ALLOWED_ROLE_ID = '1511200506557632623'; 
 
         const hasRole = interaction.member.roles.cache.has(ALLOWED_ROLE_ID);
         const isOwner = interaction.user.id === ALLOWED_USER_ID;
 
         if (!isOwner && !hasRole) {
             return interaction.reply({
-                content: '❌ ليس لديك صلاحية لاستخدام هذا الأمر. (مخصص فقط لصاحب البوت أو مسؤول المسابقات)',
+                content: '❌ ليس لديك صلاحية لاستخدام هذا الأمر.',
                 ephemeral: true
             });
         }
 
-        // --- جلب البيانات المدخلة ---
         const tournament = interaction.options.getString('البطولة');
         const team1 = interaction.options.getString('الفريق_الأول');
         const team2 = interaction.options.getString('الفريق_الثاني');
         const timeInput = interaction.options.getString('وقت_الإغلاق');
         const pointsType = interaction.options.getString('نوع_النقاط');
 
-        // تحويل تاريخ الإدخال إلى Timestamp لمقارنته بالوقت الحالي بدقة
         const closeTimestamp = Date.parse(timeInput);
         if (isNaN(closeTimestamp)) {
             return interaction.reply({
@@ -77,31 +80,29 @@ module.exports = {
             });
         }
 
-        await interaction.deferReply(); // حجز التفاعل لمنع اختفاء الاستجابة أثناء الكتابة في الداتابيز
+        await interaction.deferReply(); 
 
         const isDouble = pointsType === 'double' ? 1 : 0;
 
-        // --- جلب أكبر ID موجود وتوليد ID جديد تلقائياً لتفادي مشاكل الحقول النصية في SQLite ---
+        // جلب عدد المباريات لتوليد معرف فرعي ونقدي
         db.get(`SELECT COUNT(*) as count FROM matches`, [], async (countErr, rowCount) => {
             if (countErr) {
-                console.error(countErr);
+                console.error("🚨 خطأ أثناء قراءة الـ Count:", countErr);
                 return interaction.editReply({ content: '❌ حدث خطأ أثناء فحص قاعدة البيانات.' });
             }
 
-            // توليد آيدي جديد بناءً على عدد المباريات الحالي + 1
-            const currentMatchId = String(rowCount.count + 1);
+            const currentMatchId = String((rowCount ? rowCount.count : 0) + 1);
 
-            // --- إدراج المباراة في قاعدة البيانات بالـ ID الجديد الحركي ---
+            // إدراج البيانات
             db.run(
                 `INSERT INTO matches (matchId, team1, team2, matchTime, doublePoints, status) VALUES (?, ?, ?, ?, ?, 'open')`,
                 [currentMatchId, team1, team2, timeInput, isDouble],
                 async function (err) {
                     if (err) {
-                        console.error("🚨 خطأ الداتابيز بالتفصيل:", err);
+                        console.error("🚨 خطأ الداتابيز بالتفصيل عند الإدراج:", err);
                         return interaction.editReply({ content: '❌ حدث خطأ أثناء حفظ المباراة في قاعدة البيانات.' });
                     }
 
-                    // --- تصميم الـ Embed الاحترافي ---
                     const embed = new EmbedBuilder()
                         .setTitle(`🏆 ${tournament}`)
                         .setDescription(`**${team1}** ×  **${team2}**\n\n📅 **موعد الإغلاق:** ${timeInput}\n⭐ **دبل النقاط:** ${isDouble ? 'نعم' : 'لا'}`)
@@ -116,7 +117,6 @@ module.exports = {
                         .setFooter({ text: `رقم المباراة: #${currentMatchId} | التوقعات تقفل تلقائياً عند الموعد` })
                         .setTimestamp();
 
-                    // --- تصميم زر "توقع الآن" ---
                     const row = new ActionRowBuilder().addComponents(
                         new ButtonBuilder()
                             .setCustomId(`predict_btn_${currentMatchId}`)
@@ -124,13 +124,11 @@ module.exports = {
                             .setStyle(ButtonStyle.Primary)
                     );
 
-                    // إرسال الإيمبد في الروم الحالي
                     const message = await interaction.channel.send({
                         embeds: [embed],
                         components: [row]
                     });
 
-                    // --- تحديث قاعدة البيانات بمعلومات الرسالة والروم لربطها لاحقاً ---
                     db.run(
                         `UPDATE matches SET messageId = ?, channelId = ? WHERE matchId = ?`,
                         [message.id, interaction.channel.id, currentMatchId],
@@ -139,7 +137,6 @@ module.exports = {
                         }
                     );
 
-                    // تأكيد نجاح العملية للإداري برقم المباراة
                     await interaction.editReply({
                         content: `✅ تم إنشاء المباراة رقم \`#${currentMatchId}\` وإرسالها بنجاح في هذا الروم!`
                     });
