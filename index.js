@@ -2,16 +2,9 @@ const fs = require('fs');
 const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
 
-// الاتصال المباشر والموحد بنفس الملف الذي يستخدمه أمر الإنشاء
+// 🚨 الاتصال المباشر والموحد بقاعدة البيانات لضمان قراءة الأزرار والأوامر من نفس المكان
 const dbPath = path.join(__dirname, 'predictions_final.sqlite');
 const db = new sqlite3.Database(dbPath);
-
-// حظر كاش الـ require القديم وتوجيهه مباشرة للملف الموحد الجديد
-const Module = require('module');
-Module._cache[require.resolve('./predictions/database')] = {
-    exports: db
-};
-// =========================================================================
 
 require('dotenv').config();
 
@@ -72,10 +65,10 @@ client.on(Events.InteractionCreate, async interaction => {
         if (interaction.customId.startsWith('predict_btn_')) {
             const matchId = interaction.customId.split('_')[2];
 
-            // جلب البيانات من نفس الاتصال الموحد المحدث فوق
+            // جلب البيانات مباشرة من الداتابيز الموحدة
             db.get(`SELECT * FROM matches WHERE matchId = ?`, [matchId], (err, match) => {
                 if (err || !match) {
-                    return interaction.reply({ content: '❌ لم يتم العثور على هذه المباراة في قاعدة البيانات الموحدة.', ephemeral: true });
+                    return interaction.reply({ content: '❌ لم يتم العثور على هذه المباراة في قاعدة البيانات.', ephemeral: true });
                 }
 
                 if (match.status !== 'open') {
