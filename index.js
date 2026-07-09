@@ -3,20 +3,14 @@ const path = require('path');
 const Module = require('module');
 const originalResolveFilename = Module._resolveFilename;
 
-Module._resolveFilename = function (request, parent, isMain, options) {
-    if (request.startsWith('.') || request.startsWith('/')) {
-        const absolutePath = path.resolve(path.dirname(parent.filename), request);
-        const dirname = path.dirname(absolutePath);
-        const basename = path.basename(absolutePath);
+// تحديد اسم المجلد الفعلي الموجود بالسيرفر حركياً وتثبيته
+const actualFolder = fs.readdirSync(__dirname).find(f => f.toLowerCase() === 'predictions') || 'predictions';
 
-        if (fs.existsSync(dirname)) {
-            const files = fs.readdirSync(dirname);
-            const found = files.find(f => f.toLowerCase() === basename.toLowerCase() || f.toLowerCase() === (basename + '.js').toLowerCase());
-            if (found) {
-                const correctedPath = path.join(dirname, found.endsWith('.js') ? found.slice(0, -3) : found);
-                return originalResolveFilename.apply(this, [correctedPath, parent, isMain, options]);
-            }
-        }
+Module._resolveFilename = function (request, parent, isMain, options) {
+    // إذا كان الاستدعاء يتجه لمجلد التوقعات، نقوم بتصحيحه للاسم الفعلي فوراً
+    if (request.toLowerCase().includes('predictions/database')) {
+        const correctedPath = path.join(__dirname, actualFolder, 'database');
+        return originalResolveFilename.apply(this, [correctedPath, parent, isMain, options]);
     }
     return originalResolveFilename.apply(this, arguments);
 };
@@ -24,7 +18,7 @@ Module._resolveFilename = function (request, parent, isMain, options) {
 
 require('dotenv').config();
 require('./database');
-require('./predictions/database'); // ستعمل الآن بدون أي مشاكل كراش
+require('./predictions/database'); // ستعمل الحين بثبات مستمر ودائم في كل الـ Restarts
 
 const {
     Client,
@@ -79,9 +73,7 @@ client.on(Events.InteractionCreate, async interaction => {
     if (interaction.isButton()) {
         console.log('Button Clicked By:', interaction.user.id);
 
-        // ==========================================
-        // 🎯 أولاً: تفاعل زر مسابقة التوقعات (متاح للجميع)
-        // ==========================================
+        // تفاعل زر مسابقة التوقعات
         if (interaction.customId.startsWith('predict_btn_')) {
             const matchId = interaction.customId.split('_')[2];
             const db = require('./predictions/database');
@@ -131,9 +123,7 @@ client.on(Events.InteractionCreate, async interaction => {
             return;
         }
 
-        // ==========================================
-        // 👮 ثانياً: أزرار الإدارة والترقيات القديمة
-        // ==========================================
+        // أزرار الإدارة والترقيات القديمة
         const ALLOWED_USERS = ['1229374664107884597'];
 
         if (!ALLOWED_USERS.includes(interaction.user.id)) {
@@ -194,9 +184,7 @@ client.on(Events.InteractionCreate, async interaction => {
         return;
     }
 
-    // ==========================================
-    // 📩 ثالثاً: استقبال بيانات الـ Modal وحفظها
-    // ==========================================
+    // استقبال بيانات الـ Modal وحفظها
     if (interaction.isModalSubmit()) {
         if (interaction.customId.startsWith('predict_modal_')) {
             const matchId = interaction.customId.split('_')[2];
@@ -236,7 +224,7 @@ client.on(Events.InteractionCreate, async interaction => {
     }
 });
 
-// خادم ويب وهمي لـ Render لاستقبال طلبات الـ Ping ومنع السكون
+// خادم ويب وهمي لـ Render لمنع السكون
 const http = require('http');
 http.createServer((req, res) => {
     res.write("Bot is running 24/7");
