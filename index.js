@@ -2,9 +2,41 @@ const fs = require('fs');
 const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
 
-// 🚨 الاتصال المباشر والموحد بقاعدة البيانات لضمان قراءة الأزرار والأوامر من نفس المكان
+// 🚨 الاتصال المباشر والموحد بقاعدة البيانات النهائية
 const dbPath = path.join(__dirname, 'predictions_final.sqlite');
 const db = new sqlite3.Database(dbPath);
+
+// 🛠️ إنشاء جميع الجداول الناقصة فوراً لضمان عمل التوقعات وأوامر النقاط
+db.serialize(() => {
+    // 1. جدول المباريات
+    db.run(`CREATE TABLE IF NOT EXISTS matches (
+        matchId TEXT PRIMARY KEY,
+        team1 TEXT,
+        team2 TEXT,
+        matchTime TEXT,
+        status TEXT DEFAULT 'open',
+        channelId TEXT,
+        messageId TEXT,
+        doublePoints INTEGER DEFAULT 0
+    )`);
+
+    // 2. جدول التوقعات (تم إصلاح نظام الـ PRIMARY KEY ليتوافق مع الحفظ)
+    db.run(`CREATE TABLE IF NOT EXISTS predictions (
+        matchId TEXT,
+        userId TEXT,
+        winner TEXT,
+        score TEXT,
+        PRIMARY KEY (matchId, userId)
+    )`);
+
+    // 3. جدول النقاط للمستخدمين (عشان أوامر إضافة وخصم النقاط تشتغل)
+    db.run(`CREATE TABLE IF NOT EXISTS users (
+        userId TEXT PRIMARY KEY,
+        points INTEGER DEFAULT 0
+    )`);
+    
+    console.log('✅ جميع جداول قاعدة البيانات (مباريات، توقعات، نقاط) جاهزة للعمل!');
+});
 
 require('dotenv').config();
 
@@ -65,7 +97,6 @@ client.on(Events.InteractionCreate, async interaction => {
         if (interaction.customId.startsWith('predict_btn_')) {
             const matchId = interaction.customId.split('_')[2];
 
-            // جلب البيانات مباشرة من الداتابيز الموحدة
             db.get(`SELECT * FROM matches WHERE matchId = ?`, [matchId], (err, match) => {
                 if (err || !match) {
                     return interaction.reply({ content: '❌ لم يتم العثور على هذه المباراة في قاعدة البيانات.', ephemeral: true });
@@ -185,8 +216,8 @@ client.on(Events.InteractionCreate, async interaction => {
                 [matchId, interaction.user.id, winner, score],
                 (err) => {
                     if (err) {
-                        console.error(err);
-                        return interaction.reply({ content: '❌ حدث خطأ أثناء حفظ توقعك.', ephemeral: true });
+                        console.error("🚨 خطأ أثناء حفظ التوقع:", err);
+                        return interaction.reply({ content: `❌ حدث خطأ أثناء حفظ توقعك بسبب:\n\`${err.message}\``, ephemeral: true });
                     }
                     return interaction.reply({
                         content: `✅ <@${interaction.user.id}>، تم حفظ توقعك بنجاح للمباراة **#${matchId}**!\n🎯 **توقعك:** الفائز: \`${winner}\` | النتيجة: \`${score}\``,
