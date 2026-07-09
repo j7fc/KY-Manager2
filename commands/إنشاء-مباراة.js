@@ -81,61 +81,70 @@ module.exports = {
 
         const isDouble = pointsType === 'double' ? 1 : 0;
 
-        // --- إدراج المباراة مبدئياً في قاعدة البيانات لجلب الـ matchId تلقائياً ---
-        db.run(
-            `INSERT INTO matches (team1, team2, matchTime, doublePoints, status) VALUES (?, ?, ?, ?, 'open')`,
-            [team1, team2, timeInput, isDouble],
-            async function (err) {
-                if (err) {
-                    console.error(err);
-                    return interaction.editReply({ content: '❌ حدث خطأ أثناء حفظ المباراة في قاعدة البيانات.' });
-                }
-
-                const currentMatchId = this.lastID; // الآيدي التلقائي للمباراة الحالية
-
-                // --- تصميم الـ Embed الاحترافي ---
-                const embed = new EmbedBuilder()
-                    .setTitle(`🏆 ${tournament}`)
-                    .setDescription(`**${team1}**  ×  **${team2}**\n\n📅 **موعد الإغلاق:** ${timeInput}\n⭐ **دبل النقاط:** ${isDouble ? 'نعم' : 'لا'}`)
-                    .addFields(
-                        {
-                            name: '🎯 نظام النقاط المعتمد',
-                            value: `🥇 توقع النتيجة كاملة وصحيحة = **${isDouble ? '+6' : '+3'}** نقاط\n🥈 توقع الفائز/التعادل فقط = **${isDouble ? '+2' : '+1'}** نقطة\n❌ توقع خاطئ تماماً = **0** نقاط`,
-                            inline: false
-                        }
-                    )
-                    .setColor(isDouble ? 'Gold' : 'Blue')
-                    .setFooter({ text: `رقم المباراة: #${currentMatchId} | التوقعات تقفل تلقائياً عند الموعد` })
-                    .setTimestamp();
-
-                // --- تصميم زر "توقع الآن" ---
-                const row = new ActionRowBuilder().addComponents(
-                    new ButtonBuilder()
-                        .setCustomId(`predict_btn_${currentMatchId}`)
-                        .setLabel('🎯 توقع الآن')
-                        .setStyle(ButtonStyle.Primary)
-                );
-
-                // إرسال الإيمبد في الروم الحالي
-                const message = await interaction.channel.send({
-                    embeds: [embed],
-                    components: [row]
-                });
-
-                // --- تحديث قاعدة البيانات بمعلومات الرسالة والروم لربطها لاحقاً ---
-                db.run(
-                    `UPDATE matches SET messageId = ?, channelId = ? WHERE matchId = ?`,
-                    [message.id, interaction.channel.id, currentMatchId],
-                    (updateErr) => {
-                        if (updateErr) console.error('خطأ تحديث تفاصيل الرسالة:', updateErr);
-                    }
-                );
-
-                // تأكيد نجاح العملية للإداري برقم المباراة
-                await interaction.editReply({
-                    content: `✅ تم إنشاء المباراة رقم \`#${currentMatchId}\` وإرسالها بنجاح في هذا الروم!`
-                });
+        // --- جلب أكبر ID موجود وتوليد ID جديد تلقائياً لتفادي مشاكل الحقول النصية في SQLite ---
+        db.get(`SELECT COUNT(*) as count FROM matches`, [], async (countErr, rowCount) => {
+            if (countErr) {
+                console.error(countErr);
+                return interaction.editReply({ content: '❌ حدث خطأ أثناء فحص قاعدة البيانات.' });
             }
-        );
+
+            // توليد آيدي جديد بناءً على عدد المباريات الحالي + 1
+            const currentMatchId = String(rowCount.count + 1);
+
+            // --- إدراج المباراة في قاعدة البيانات بالـ ID الجديد الحركي ---
+            db.run(
+                `INSERT INTO matches (matchId, team1, team2, matchTime, doublePoints, status) VALUES (?, ?, ?, ?, ?, 'open')`,
+                [currentMatchId, team1, team2, timeInput, isDouble],
+                async function (err) {
+                    if (err) {
+                        console.error("🚨 خطأ الداتابيز بالتفصيل:", err);
+                        return interaction.editReply({ content: '❌ حدث خطأ أثناء حفظ المباراة في قاعدة البيانات.' });
+                    }
+
+                    // --- تصميم الـ Embed الاحترافي ---
+                    const embed = new EmbedBuilder()
+                        .setTitle(`🏆 ${tournament}`)
+                        .setDescription(`**${team1}** ×  **${team2}**\n\n📅 **موعد الإغلاق:** ${timeInput}\n⭐ **دبل النقاط:** ${isDouble ? 'نعم' : 'لا'}`)
+                        .addFields(
+                            {
+                                name: '🎯 نظام النقاط المعتمد',
+                                value: `🥇 توقع النتيجة كاملة وصحيحة = **${isDouble ? '+6' : '+3'}** نقاط\n🥈 توقع الفائز/التعادل فقط = **${isDouble ? '+2' : '+1'}** نقطة\n❌ توقع خاطئ تماماً = **0** نقاط`,
+                                inline: false
+                            }
+                        )
+                        .setColor(isDouble ? 'Gold' : 'Blue')
+                        .setFooter({ text: `رقم المباراة: #${currentMatchId} | التوقعات تقفل تلقائياً عند الموعد` })
+                        .setTimestamp();
+
+                    // --- تصميم زر "توقع الآن" ---
+                    const row = new ActionRowBuilder().addComponents(
+                        new ButtonBuilder()
+                            .setCustomId(`predict_btn_${currentMatchId}`)
+                            .setLabel('🎯 توقع الآن')
+                            .setStyle(ButtonStyle.Primary)
+                    );
+
+                    // إرسال الإيمبد في الروم الحالي
+                    const message = await interaction.channel.send({
+                        embeds: [embed],
+                        components: [row]
+                    });
+
+                    // --- تحديث قاعدة البيانات بمعلومات الرسالة والروم لربطها لاحقاً ---
+                    db.run(
+                        `UPDATE matches SET messageId = ?, channelId = ? WHERE matchId = ?`,
+                        [message.id, interaction.channel.id, currentMatchId],
+                        (updateErr) => {
+                            if (updateErr) console.error('خطأ تحديث تفاصيل الرسالة:', updateErr);
+                        }
+                    );
+
+                    // تأكيد نجاح العملية للإداري برقم المباراة
+                    await interaction.editReply({
+                        content: `✅ تم إنشاء المباراة رقم \`#${currentMatchId}\` وإرسالها بنجاح في هذا الروم!`
+                    });
+                }
+            );
+        });
     }
 };
