@@ -1,24 +1,19 @@
 const fs = require('fs');
 const path = require('path');
+const sqlite3 = require('sqlite3').verbose();
+
+// الاتصال المباشر والموحد بنفس الملف الذي يستخدمه أمر الإنشاء
+const dbPath = path.join(__dirname, 'predictions_final.sqlite');
+const db = new sqlite3.Database(dbPath);
+
+// حظر كاش الـ require القديم وتوجيهه مباشرة للملف الموحد الجديد
 const Module = require('module');
-const originalResolveFilename = Module._resolveFilename;
-
-// تحديد اسم المجلد الفعلي الموجود بالسيرفر حركياً وتثبيته
-const actualFolder = fs.readdirSync(__dirname).find(f => f.toLowerCase() === 'predictions') || 'predictions';
-
-Module._resolveFilename = function (request, parent, isMain, options) {
-    // إذا كان الاستدعاء يتجه لمجلد التوقعات، نقوم بتصحيحه للاسم الفعلي فوراً
-    if (request.toLowerCase().includes('predictions/database')) {
-        const correctedPath = path.join(__dirname, actualFolder, 'database');
-        return originalResolveFilename.apply(this, [correctedPath, parent, isMain, options]);
-    }
-    return originalResolveFilename.apply(this, arguments);
+Module._cache[require.resolve('./predictions/database')] = {
+    exports: db
 };
 // =========================================================================
 
 require('dotenv').config();
-require('./database');
-require('./predictions/database'); // ستعمل الحين بثبات مستمر ودائم في كل الـ Restarts
 
 const {
     Client,
@@ -76,11 +71,11 @@ client.on(Events.InteractionCreate, async interaction => {
         // تفاعل زر مسابقة التوقعات
         if (interaction.customId.startsWith('predict_btn_')) {
             const matchId = interaction.customId.split('_')[2];
-            const db = require('./predictions/database');
 
+            // جلب البيانات من نفس الاتصال الموحد المحدث فوق
             db.get(`SELECT * FROM matches WHERE matchId = ?`, [matchId], (err, match) => {
                 if (err || !match) {
-                    return interaction.reply({ content: '❌ لم يتم العثور على هذه المباراة.', ephemeral: true });
+                    return interaction.reply({ content: '❌ لم يتم العثور على هذه المباراة في قاعدة البيانات الموحدة.', ephemeral: true });
                 }
 
                 if (match.status !== 'open') {
@@ -190,7 +185,6 @@ client.on(Events.InteractionCreate, async interaction => {
             const matchId = interaction.customId.split('_')[2];
             const winner = interaction.fields.getTextInputValue('predicted_winner').trim();
             const score = interaction.fields.getTextInputValue('predicted_score').trim();
-            const db = require('./predictions/database');
 
             db.run(
                 `INSERT INTO predictions (matchId, userId, winner, score) VALUES (?, ?, ?, ?)
