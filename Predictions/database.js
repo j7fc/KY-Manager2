@@ -1,83 +1,12 @@
+const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
 
-const db = new sqlite3.Database('./predictions.db');
+// 🚨 التوجيه الحاسم: ربط هذا الملف بالداتابيز الموحدة لإنهاء خطأ الأوامر الأخرى
+const dbPath = path.join(__dirname, '..', 'predictions_final.sqlite');
 
-db.serialize(() => {
-
-    db.run(`
-        CREATE TABLE IF NOT EXISTS matches (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            team1 TEXT,
-            team2 TEXT,
-            matchTime INTEGER,
-            isDouble INTEGER,
-            status TEXT DEFAULT 'open'
-        )
-    `);
-
-    db.run(`
-        CREATE TABLE IF NOT EXISTS predictions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            matchId INTEGER,
-            userId TEXT,
-            winner TEXT,
-            score TEXT,
-            UNIQUE(matchId, userId)
-        )
-    `);
-
-    db.run(`
-        CREATE TABLE IF NOT EXISTS prediction_points (
-            userId TEXT PRIMARY KEY,
-            points INTEGER DEFAULT 0
-        )
-    `);
-
+const db = new sqlite3.Database(dbPath, (err) => {
+    if (err) console.error('خطأ في تحويل مسار قاعدة البيانات:', err.message);
+    else console.log('✅ تم توجيه ملف مجلد Predictions بنجاح إلى الداتابيز الموحدة.');
 });
-
-// ===========================
-// جدول نقاط مسابقة التوقعات
-// ===========================
-
-db.run(`
-CREATE TABLE IF NOT EXISTS prediction_points (
-    userId TEXT PRIMARY KEY,
-    points INTEGER DEFAULT 0
-)
-`);
-
-// ===========================
-// جدول المباريات
-// ===========================
-
-db.run(`
-CREATE TABLE IF NOT EXISTS matches (
-    matchId INTEGER PRIMARY KEY AUTOINCREMENT,
-    team1 TEXT,
-    team2 TEXT,
-    matchTime TEXT,
-    doublePoints INTEGER DEFAULT 0,
-    status TEXT DEFAULT 'open',
-    messageId TEXT,
-    channelId TEXT,
-    result TEXT,
-    score TEXT
-)
-`);
-
-// ===========================
-// جدول توقعات الأعضاء
-// ===========================
-
-db.run(`
-CREATE TABLE IF NOT EXISTS predictions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    matchId INTEGER,
-    userId TEXT,
-    winner TEXT,
-    score TEXT,
-    UNIQUE(matchId, userId)
-)
-`);
 
 module.exports = db;
