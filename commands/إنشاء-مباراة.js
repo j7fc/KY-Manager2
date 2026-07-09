@@ -7,9 +7,25 @@ const {
 } = require('discord.js');
 
 const path = require('path');
-const fs = require('fs');
-const predictionsDir = fs.readdirSync(path.join(__dirname, '..')).find(f => f.toLowerCase() === 'predictions');
-const db = require(path.join(__dirname, '..', predictionsDir, 'database'));
+const sqlite3 = require('sqlite3').verbose();
+
+// 🚨 الاتصال المباشر والمستقل داخل الأمر لضمان استخدام جدول صحيح 100%
+const dbPath = path.join(__dirname, '..', 'predictions_final.sqlite');
+const db = new sqlite3.Database(dbPath);
+
+// التأكد من بناء الجدول الصحيح داخلياً فوراً
+db.serialize(() => {
+    db.run(`CREATE TABLE IF NOT EXISTS matches (
+        matchId TEXT PRIMARY KEY,
+        team1 TEXT,
+        team2 TEXT,
+        matchTime TEXT,
+        status TEXT DEFAULT 'open',
+        channelId TEXT,
+        messageId TEXT,
+        doublePoints INTEGER DEFAULT 0
+    )`);
+});
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -60,7 +76,7 @@ module.exports = {
         await interaction.deferReply(); 
         const isDouble = pointsType === 'double' ? 1 : 0;
 
-        // قراءة العدد وتوليد الآيدي
+        // قراءة العدد وتوليد الآيدي من الملف المباشر الجديد
         db.get(`SELECT COUNT(*) as count FROM matches`, [], async (countErr, rowCount) => {
             if (countErr) {
                 return interaction.editReply({ content: `❌ خطأ في فحص جدول المباريات:\n\`${countErr.message}\`` });
@@ -68,14 +84,13 @@ module.exports = {
 
             const currentMatchId = String((rowCount ? rowCount.count : 0) + 1);
 
-            // محاولة الإدخال
+            // محاولة الإدخال في الملف المباشر
             db.run(
                 `INSERT INTO matches (matchId, team1, team2, matchTime, doublePoints, status) VALUES (?, ?, ?, ?, ?, 'open')`,
                 [currentMatchId, team1, team2, timeInput, isDouble],
                 async function (err) {
                     if (err) {
-                        // هنا السحر: البوت بيعطيك سبب المشكلة الحقيقي بالظبط في الديسكورد!
-                        return interaction.editReply({ content: `❌ فشل الحفظ في قاعدة البيانات بسبب:\n\`${err.message}\`` });
+                        return interaction.editReply({ content: `❌ فشل الحفظ بسبب:\n\`${err.message}\`` });
                     }
 
                     const embed = new EmbedBuilder()
