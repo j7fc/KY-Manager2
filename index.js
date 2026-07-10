@@ -33,7 +33,7 @@ db.serialize(() => {
         PRIMARY KEY (matchId, userId)
     )`);
 
-    // 3. 🚨 جدول نقاط وإحصائيات المسابقة الموحد (تمت إضافته وتأكيده هنا)
+    // 3. 🚨 جدول نقاط وإحصائيات المسابقة الموحد
     db.run(`CREATE TABLE IF NOT EXISTS tournament_points (
         userId TEXT PRIMARY KEY,
         points INTEGER DEFAULT 0,
@@ -118,13 +118,14 @@ client.on(Events.InteractionCreate, async interaction => {
                     return interaction.reply({ content: '❌ لم يتم العثور على هذه المباراة في قاعدة البيانات.', ephemeral: true });
                 }
 
+                // التحقق من حالة المباراة في الداتابيز
                 if (match.status !== 'open') {
-                    return interaction.reply({ content: '⏰ نأسف، تم إغلاق التوقعات لهذه المباراة نهائياً.', ephemeral: true });
+                    return interaction.reply({ content: '⏰ نأسف، تم إغلاق التوقعات لهذه المباراة نهائياً وعبر الإدارة.', ephemeral: true });
                 }
 
-                // الحساب التلقائي لوقت المباراة للإغلاق الفوري
+                // فحص وقت الإغلاق التلقائي عند الضغط على الزر
                 const closeTimestamp = Date.parse(match.matchTime);
-                if (Date.now() > closeTimestamp) {
+                if (!isNaN(closeTimestamp) && Date.now() > closeTimestamp) {
                     db.run(`UPDATE matches SET status = 'closed' WHERE matchId = ?`, [matchId]);
                     return interaction.reply({ content: '⏰ تم إغلاق التوقعات لهذه المباراة تلقائياً لانتهاء الوقت المحدد وعبر بداية اللقاء الحقيقي.', ephemeral: true });
                 }
@@ -224,28 +225,59 @@ client.on(Events.InteractionCreate, async interaction => {
         return;
     }
 
-    // استقبال بيانات الـ Modal وحفظها أو تعديلها
+    // استقبال بيانات الـ Modal وحفظها أو تعديلها الذكي
     if (interaction.isModalSubmit()) {
         if (interaction.customId.startsWith('predict_modal_')) {
             const matchId = interaction.customId.split('_')[2];
             const winner = interaction.fields.getTextInputValue('predicted_winner').trim();
             const score = interaction.fields.getTextInputValue('predicted_score').trim();
 
-            db.run(
-                `INSERT INTO predictions (matchId, userId, winner, score) VALUES (?, ?, ?, ?)
-                 ON CONFLICT(matchId, userId) DO UPDATE SET winner = excluded.winner, score = excluded.score`,
-                [matchId, interaction.user.id, winner, score],
-                (err) => {
-                    if (err) {
-                        console.error("🚨 خطأ أثناء حفظ التوقع:", err);
-                        return interaction.reply({ content: `❌ حدث خطأ أثناء حفظ توقعك بسبب:\n\`${err.message}\``, ephemeral: true });
-                    }
-                    return interaction.reply({
-                        content: `✅ <@${interaction.user.id}>، تم حفظ توقعك بنجاح للمباراة **#${matchId}**!\n🎯 **توقعك الحالي:** الفائز: \`${winner}\` | النتيجة: \`${score}\`\n*(ملاحظة: يمكنك تعديل توقعك بالضغط على الزر مجدداً حتى بداية اللقاء)*`,
-                        ephemeral: true
-                    });
+            // 1. فحص إضافي صارم للوقت وحالة المباراة عند إرسال المودال مباشرة لمنع التلاعب
+            db.get(`SELECT * FROM matches WHERE matchId = ?`, [matchId], (matchErr, match) => {
+                if (matchErr || !match) {
+                    return interaction.reply({ content: '❌ لم يتم العثور على هذه المباراة في قاعدة البيانات.', ephemeral: true });
                 }
-            );
+
+                if (match.status !== 'open') {
+                    return interaction.reply({ content: '⏰ نأسف، تم إغلاق التوقعات لهذه المباراة ولا يمكن استقبال توقعك.', ephemeral: true });
+                }
+
+                const closeTimestamp = Date.parse(match.matchTime);
+                if (!isNaN(closeTimestamp) && Date.now() > closeTimestamp) {
+                    db.run(`UPDATE matches SET status = 'closed' WHERE matchId = ?`, [matchId]);
+                    return interaction.reply({ content: '⏰ نأسف، انتهى الوقت المسموح به لهذه المباراة أثناء كتابتك للتوقع، تم رفض الإرسال.', ephemeral: true });
+                }
+
+                // 2. التحقق المسبق لمعرفة إذا كان العضو يملك توقعاً قديماً لتعديل الرسالة
+                db.get(`SELECT * FROM predictions WHERE matchId = ? AND userId = ?`, [matchId, interaction.user.id], (predErr, existingPred) => {
+                    const isUpdate = !!existingPred; // تصبح true إذا وجدنا سجل قديم للعضو
+
+                    db.run(
+                        `INSERT INTO predictions (matchId, userId, winner, score) VALUES (?, ?, ?, ?)
+                         ON CONFLICT(matchId, userId) DO UPDATE SET winner = excluded.winner, score = excluded.score`,
+                        [matchId, interaction.user.id, winner, score],
+                        (err) => {
+                            if (err) {
+                                console.error("🚨 خطأ أثناء حفظ التوقع:", err);
+                                return interaction.reply({ content: `❌ حدث خطأ أثناء حفظ توقعك بسبب:\n\`${err.message}\``, ephemeral: true });
+                            }
+                            
+                            // تخصيص نص الرسالة حسب الحالة
+                            if (isUpdate) {
+                                return interaction.reply({
+                                    content: `⚙️ <@${interaction.user.id}>، **تم تعديل توقعك بنجاح** للمباراة **#${matchId}**!\n🎯 **التوقع الجديد:** الفائز: \`${winner}\` | النتيجة: \`${score}\`\n*(ملاحظة: يمكنك تعديل توقعك مجدداً في أي وقت قبل بداية اللقاء)*`,
+                                    ephemeral: true
+                                });
+                            } else {
+                                return interaction.reply({
+                                    content: `✅ <@${interaction.user.id}>، تم حفظ توقعك بنجاح للمباراة **#${matchId}**!\n🎯 **توقعك الحالي:** الفائز: \`${winner}\` | النتيجة: \`${score}\`\n*(ملاحظة: يمكنك تعديل توقعك بالضغط على الزر مجدداً حتى بداية اللقاء)*`,
+                                    ephemeral: true
+                                });
+                            }
+                        }
+                    );
+                });
+            });
         }
         return;
     }
