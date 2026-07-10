@@ -2,7 +2,7 @@ const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
 
-// 🚨 تم التعديل: ربط دقيق ومباشر بملف الداتابيز الصحيح (predictions_final.sqlite) في المجلد الرئيسي
+// ربط مباشر وصارم بملف الداتابيز الصحيح في المجلد الرئيسي
 const dbPath = path.join(__dirname, '..', 'predictions_final.sqlite');
 const db = new sqlite3.Database(dbPath);
 
@@ -26,44 +26,43 @@ module.exports = {
 
         if (subcommand === 'إضافة-نقاط' || subcommand === 'خصم-نقاط') {
             const targetUser = interaction.options.getUser('العضو');
-            let points = interaction.options.getInteger('النقاط');
-            const displayPoints = points; // للاحتفاظ بالرقم الموجب للعرض في الرسالة
+            let pointsChange = interaction.options.getInteger('النقاط');
+            const displayPoints = pointsChange; // للعرض الرقمي الموجب
             
-            if (subcommand === 'خصم-نقاط') points = -points;
+            if (subcommand === 'خصم-نقاط') pointsChange = -pointsChange;
 
-            // 🛠️ خطوة أمان: التأكد من إنشاء الجدول أولاً لمنع حدوث خطأ أثناء الإدخال اليدوي
-            db.run(`CREATE TABLE IF NOT EXISTS tournament_points (
-                userId TEXT PRIMARY KEY,
-                points INTEGER DEFAULT 0,
-                exactMatches INTEGER DEFAULT 0,
-                winnerOnlyMatches INTEGER DEFAULT 0,
-                wrongMatches INTEGER DEFAULT 0
-            )`, (createErr) => {
-                if (createErr) {
-                    console.error("🚨 خطأ في إنشاء جدول النقاط اليدوية:", createErr);
-                    return interaction.reply({ content: '❌ حدث خطأ في تهيئة جدول النقاط اليدوية.', ephemeral: true });
+            await interaction.deferReply({ ephemeral: true });
+
+            // 1️⃣ فحص هل العضو مسجل مسبقاً في جدول الصدارة أم لا
+            db.get(`SELECT points FROM tournament_points WHERE userId = ?`, [targetUser.id], (searchErr, row) => {
+                if (searchErr) {
+                    console.error("🚨 خطأ أثناء البحث عن العضو:", searchErr);
+                    return interaction.editReply({ content: '❌ حدث خطأ أثناء فحص بيانات العضو في الداتابيز.' });
                 }
 
-                // تنفيذ عملية الإضافة أو الخصم بأمان
-                db.run(`INSERT INTO tournament_points (userId, points) VALUES (?, ?)
-                        ON CONFLICT(userId) DO UPDATE SET points = points + excluded.points`, [targetUser.id, points], (err) => {
-                    if (err) {
-                        console.error("🚨 خطأ أثناء التحديث اليدوي:", err);
-                        return interaction.reply({ content: '❌ حدث خطأ أثناء التحديث اليدوي للنقاط.', ephemeral: true });
-                    }
-                    
-                    const isAdd = subcommand === 'إضافة-نقاط';
-                    const embed = new EmbedBuilder()
-                        .setTitle(isAdd ? '✨ إضافة نقاط يدوية' : '🔻 خصم نقاط يدوي')
-                        .setDescription(isAdd 
-                            ? `✅ تم بنجاح إضافة **${displayPoints}** نقطة إلى حساب <@${targetUser.id}> في المسابقة.`
-                            : `✅ تم بنجاح خصم **${displayPoints}** نقطة من حساب <@${targetUser.id}> في المسابقة.`
-                        )
-                        .setColor(isAdd ? 'Green' : 'Red')
-                        .setTimestamp();
-
-                    return interaction.reply({ embeds: [embed] });
-                });
+                if (row) {
+                    // 2️⃣ إذا كان العضو موجوداً، قم بعمل UPDATE مباشر ونظيف لصحته
+                    const newPoints = row.points + pointsChange;
+                    db.run(`UPDATE tournament_points SET points = ? WHERE userId = ?`, [newPoints, targetUser.id], (updateErr) => {
+                        if (updateErr) {
+                            console.error("🚨 خطأ أثناء تحديث نقاط العضو الحالية:", updateErr);
+                            return interaction.editReply({ content: '❌ حدث خطأ أثناء تحديث نقاط العضو الحالية.' });
+                        }
+                        return sendSuccessEmbed(interaction, subcommand, displayPoints, targetUser);
+                    });
+                } else {
+                    // 3️⃣ إذا لم يكن موجوداً، قم بعمل INSERT عادي ومبسط جداً
+                    // نقاط البدء لا يمكن أن تكون أقل من صفر في الحسبة الطبيعية
+                    const startingPoints = pointsChange < 0 ? 0 : pointsChange; 
+                    db.run(`INSERT INTO tournament_points (userId, points, exactMatches, winnerOnlyMatches, wrongMatches) VALUES (?, ?, 0, 0, 0)`, 
+                    [targetUser.id, startingPoints], (insertErr) => {
+                        if (insertErr) {
+                            console.error("🚨 خطأ أثناء إدخال العضو الجديد للمرة الأولى:", insertErr);
+                            return interaction.editReply({ content: '❌ حدث خطأ أثناء تسجيل العضو الجديد بنقاطه الأولى.' });
+                        }
+                        return sendSuccessEmbed(interaction, subcommand, displayPoints, targetUser);
+                    });
+                }
             });
         }
 
@@ -83,3 +82,18 @@ module.exports = {
         }
     }
 };
+
+// دالة مساعدة لإنشاء وإرسال الإمبيد بنجاح تقليلاً لتكرار الكود
+function sendSuccessEmbed(interaction, subcommand, displayPoints, targetUser) {
+    const isAdd = subcommand === 'إضافة-نقاط';
+    const embed = new EmbedBuilder()
+        .setTitle(isAdd ? '✨ إضافة نقاط يدوية' : '🔻 خصم نقاط يدوي')
+        .setDescription(isAdd 
+            ? `✅ تم بنجاح إضافة **${displayPoints}** نقطة إلى حساب <@${targetUser.id}> في المسابقة.`
+            : `✅ تم بنجاح خصم **${displayPoints}** نقطة من حساب <@${targetUser.id}> في المسابقة.`
+        )
+        .setColor(isAdd ? 'Green' : 'Red')
+        .setTimestamp();
+
+    return interaction.editReply({ embeds: [embed] });
+}
