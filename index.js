@@ -245,7 +245,8 @@ client.on(Events.InteractionCreate, async interaction => {
                 const closeTimestamp = Date.parse(match.matchTime);
                 if (!isNaN(closeTimestamp) && Date.now() > closeTimestamp) {
                     db.run(`UPDATE matches SET status = 'closed' WHERE matchId = ?`, [matchId]);
-                    return interaction.reply({ content: '⏰ نأسف، انتهى الوقت المسموح به لهذه المباراة أثناء كتابتك للتوقع، تم رفض الإرسال.', ephemeral: true });
+                    // 🚨 التعديل الجوهري الحاسم هنا: إضافة الـ return يوقف الكود ويمنع حفظ التوقع نهائياً!
+                    return interaction.reply({ content: '⏰ نأسف، انتهى الوقت المسموح به لهذه المباراة أثناء كتابتك للتوقع، تم رفض الإرسال وعملية التعديل.', ephemeral: true });
                 }
 
                 // 2. التحقق المسبق لمعرفة إذا كان العضو يملك توقعاً قديماً لتعديل الرسالة
