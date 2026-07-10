@@ -2,8 +2,12 @@ const fs = require('fs');
 const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
 
-// 🚨 تم التعديل: استدعاء قاعدة البيانات الموحدة مباشرة من المجلد الرئيسي للبوت لحل مشكلة MODULE_NOT_FOUND
-const db = require('./database.js'); 
+// 🚨 تم التعديل: ربط صارم ومباشر بملف الداتابيز الموحد الصحيح للمسابقات لحل مشكلة عدم العثور على المباريات
+const dbPath = path.join(__dirname, 'predictions_final.sqlite');
+const db = new sqlite3.Database(dbPath, (err) => {
+    if (err) console.error('🚨 خطأ في ربط index.js بـ predictions_final.sqlite:', err.message);
+    else console.log('✅ تم ربط الأزرار والمودالات بنجاح بملف الداتابيز الموحد (predictions_final.sqlite)!');
+});
 
 // الاتصال بقاعدة بيانات النقاط الأساسية القديمة للسيرفر (points.db) 
 const dbPointsPath = path.join(__dirname, 'points.db');
@@ -76,7 +80,7 @@ client.on(Events.InteractionCreate, async interaction => {
 
             db.get(`SELECT * FROM matches WHERE matchId = ?`, [matchId], (err, match) => {
                 if (err || !match) {
-                    return interaction.reply({ content: '❌ لم يتم العثور على هذه المباراة في قاعدة البيانات.', ephemeral: true });
+                    return interaction.reply({ content: '❌ لم يتم العثور على هذه المباراة في قاعدة البيانات الموحدة.', ephemeral: true });
                 }
 
                 if (match.status !== 'open') {
