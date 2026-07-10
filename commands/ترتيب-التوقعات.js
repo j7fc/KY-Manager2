@@ -1,7 +1,10 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const path = require('path');
+const sqlite3 = require('sqlite3').verbose();
 
-// 🚨 استدعاء ملف الداتابيز الموحد من المجلد الرئيسي
-const db = require('../database.js');
+// 🚨 تم التعديل: ربط صارم ومباشر بملف الداتابيز الموحد الصحيح في المجلد الرئيسي لقراءة النقاط الجديدة
+const dbPath = path.join(__dirname, '..', 'predictions_final.sqlite');
+const db = new sqlite3.Database(dbPath);
 
 module.exports = {
     data: new SlashCommandBuilder()
