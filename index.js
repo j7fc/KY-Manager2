@@ -2,11 +2,45 @@ const fs = require('fs');
 const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
 
-// 🚨 تم التعديل: ربط صارم ومباشر بملف الداتابيز الموحد الصحيح للمسابقات لحل مشكلة عدم العثور على المباريات
+// 🚨 ربط صارم ومباشر بملف الداتابيز الموحد الصحيح للمسابقات
 const dbPath = path.join(__dirname, 'predictions_final.sqlite');
 const db = new sqlite3.Database(dbPath, (err) => {
     if (err) console.error('🚨 خطأ في ربط index.js بـ predictions_final.sqlite:', err.message);
     else console.log('✅ تم ربط الأزرار والمودالات بنجاح بملف الداتابيز الموحد (predictions_final.sqlite)!');
+});
+
+// 🛠️ خطوة الأمان الفورية: التأكد الصارم من إنشاء جميع الجداول الناقصة في الداتابيز لمنع خطأ no such table
+db.serialize(() => {
+    // 1. إنشاء جدول المباريات
+    db.run(`CREATE TABLE IF NOT EXISTS matches (
+        matchId TEXT PRIMARY KEY,
+        team1 TEXT,
+        team2 TEXT,
+        matchTime TEXT,
+        status TEXT DEFAULT 'open',
+        channelId TEXT,
+        messageId TEXT,
+        doublePoints INTEGER DEFAULT 0
+    )`);
+
+    // 2. إنشاء جدول التوقعات (اللي كان مسبب المشكلة)
+    db.run(`CREATE TABLE IF NOT EXISTS predictions (
+        matchId TEXT,
+        userId TEXT,
+        winner TEXT,
+        score TEXT,
+        PRIMARY KEY (matchId, userId)
+    )`);
+
+    // 3. إنشاء جدول صدارة مسابقة التوقعات
+    db.run(`CREATE TABLE IF NOT EXISTS tournament_points (
+        userId TEXT PRIMARY KEY,
+        points INTEGER DEFAULT 0,
+        exactMatches INTEGER DEFAULT 0,
+        winnerOnlyMatches INTEGER DEFAULT 0,
+        wrongMatches INTEGER DEFAULT 0
+    )`);
+    console.log('🛡️ تم التحقق من سلامة وإنشاء كافة جداول المسابقات بنجاح!');
 });
 
 // الاتصال بقاعدة بيانات النقاط الأساسية القديمة للسيرفر (points.db) 
