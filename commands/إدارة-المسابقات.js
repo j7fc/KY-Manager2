@@ -26,12 +26,29 @@ module.exports = {
         if (subcommand === 'إضافة-نقاط' || subcommand === 'خصم-نقاط') {
             const targetUser = interaction.options.getUser('العضو');
             let points = interaction.options.getInteger('النقاط');
+            const displayPoints = points; // للاحتفاظ بالرقم الموجب للعرض في الرسالة
+            
             if (subcommand === 'خصم-نقاط') points = -points;
 
-            db.run(`INSERT INTO tournament_stats (userId, points) VALUES (?, ?)
+            // تم تصحيح الجدول هنا إلى tournament_points ليعمل بشكل سليم مع ملف index ونقاطي بالمسابقة
+            db.run(`INSERT INTO tournament_points (userId, points) VALUES (?, ?)
                     ON CONFLICT(userId) DO UPDATE SET points = points + excluded.points`, [targetUser.id, points], (err) => {
-                if (err) return interaction.reply({ content: '❌ حدث خطأ أثناء التحديث اليدوي.' });
-                return interaction.reply({ content: `✅ تم تحديث رصيد <@${targetUser.id}> بنجاح بمقدار (\`${points}\`) نقطة بالمسابقة.` });
+                if (err) {
+                    console.error("🚨 خطأ أثناء التحديث اليدوي:", err);
+                    return interaction.reply({ content: '❌ حدث خطأ أثناء التحديث اليدوي للنقاط.', ephemeral: true });
+                }
+                
+                const isAdd = subcommand === 'إضافة-نقاط';
+                const embed = new EmbedBuilder()
+                    .setTitle(isAdd ? '✨ إضافة نقاط يدوية' : '🔻 خصم نقاط يدوي')
+                    .setDescription(isAdd 
+                        ? `✅ تم بنجاح إضافة **${displayPoints}** نقطة إلى حساب <@${targetUser.id}> في المسابقة.`
+                        : `✅ تم بنجاح خصم **${displayPoints}** نقطة من حساب <@${targetUser.id}> في المسابقة.`
+                    )
+                    .setColor(isAdd ? 'Green' : 'Red')
+                    .setTimestamp();
+
+                return interaction.reply({ embeds: [embed] });
             });
         }
 

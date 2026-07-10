@@ -32,8 +32,17 @@ db.serialize(() => {
         score TEXT,
         PRIMARY KEY (matchId, userId)
     )`);
+
+    // 3. 🚨 جدول نقاط وإحصائيات المسابقة الموحد (تمت إضافته وتأكيده هنا)
+    db.run(`CREATE TABLE IF NOT EXISTS tournament_points (
+        userId TEXT PRIMARY KEY,
+        points INTEGER DEFAULT 0,
+        exactMatches INTEGER DEFAULT 0,
+        winnerOnlyMatches INTEGER DEFAULT 0,
+        wrongMatches INTEGER DEFAULT 0
+    )`);
     
-    console.log('✅ قاعدة بيانات مسابقة التوقعات (predictions_final.sqlite) جاهزة للعمل!');
+    console.log('✅ قاعدة بيانات مسابقة التوقعات بجميع جداولها جاهزة للعمل بنسبة 100%!');
 });
 
 // التأكد من وجود جدول النقاط القديم في قاعدة بيانات السيرفر الأساسية
