@@ -54,16 +54,15 @@ module.exports = {
                             wrongList.push(`<@${p.userId}>`); isWrong = 1;
                         }
 
-                        // تحديث جدول إحصائيات التوقعات التفصيلي
-                        db.run(`INSERT INTO tournament_stats (userId, points, totalPredictions, exactMatches, winnerOnlyMatches, wrongMatches) 
-                                VALUES (?, ?, 1, ?, ?, ?)
+                        // 🚨 التعديل الذهبي هنا: تغيير اسم الجدول إلى tournament_points ليطابق كود الترتيب و index.js
+                        db.run(`INSERT INTO tournament_points (userId, points, exactMatches, winnerOnlyMatches, wrongMatches) 
+                                VALUES (?, ?, ?, ?, ?)
                                 ON CONFLICT(userId) DO UPDATE SET 
                                 points = points + excluded.points,
-                                totalPredictions = totalPredictions + 1,
-                                exactMatches = exactMatches + ?,
-                                winnerOnlyMatches = winnerOnlyMatches + ?,
-                                wrongMatches = wrongMatches + ?`,
-                                [p.userId, pointsGained, isExact, isWinnerOnly, isWrong, isExact, isWinnerOnly, isWrong]
+                                exactMatches = exactMatches + excluded.exactMatches,
+                                winnerOnlyMatches = winnerOnlyMatches + excluded.winnerOnlyMatches,
+                                wrongMatches = wrongMatches + excluded.wrongMatches`,
+                                [p.userId, pointsGained, isExact, isWinnerOnly, isWrong]
                         );
                     });
                 });
@@ -80,7 +79,6 @@ module.exports = {
                     )
                     .setColor('Green').setTimestamp();
 
-                // منشن جماعي لكل من شارك في المباراة ليعلم بنتيجته فوراً
                 const allMentions = rows.map(p => `<@${p.userId}>`).join(' ');
                 await interaction.editReply({ content: `🔔 **إعلان نتائج المسابقة:** ${allMentions}`, embeds: [embed] });
             });
