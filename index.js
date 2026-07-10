@@ -123,9 +123,13 @@ client.on(Events.InteractionCreate, async interaction => {
                     return interaction.reply({ content: '⏰ نأسف، تم إغلاق التوقعات لهذه المباراة نهائياً وعبر الإدارة.', ephemeral: true });
                 }
 
-                // فحص وقت الإغلاق التلقائي عند الضغط على الزر
+                // 🚨 تعديل الحسبة برمجياً: تحويل وقت السعودية المدخل ليتطابق مع خادم ريندر (طرح 3 ساعات)
                 const closeTimestamp = Date.parse(match.matchTime);
-                if (!isNaN(closeTimestamp) && Date.now() > closeTimestamp) {
+                const threeHoursInMs = 3 * 60 * 60 * 1000; 
+                const adjustedCloseTimestamp = closeTimestamp - threeHoursInMs;
+
+                // فحص وقت الإغلاق التلقائي عند الضغط على الزر
+                if (!isNaN(adjustedCloseTimestamp) && Date.now() > adjustedCloseTimestamp) {
                     db.run(`UPDATE matches SET status = 'closed' WHERE matchId = ?`, [matchId]);
                     return interaction.reply({ content: '⏰ تم إغلاق التوقعات لهذه المباراة تلقائياً لانتهاء الوقت المحدد وعبر بداية اللقاء الحقيقي.', ephemeral: true });
                 }
@@ -242,10 +246,13 @@ client.on(Events.InteractionCreate, async interaction => {
                     return interaction.reply({ content: '⏰ نأسف، تم إغلاق التوقعات لهذه المباراة ولا يمكن استقبال توقعك.', ephemeral: true });
                 }
 
+                // 🚨 تطبيق طرح الـ 3 ساعات هنا أيضاً لحماية المودال عند الإرسال الفعلي
                 const closeTimestamp = Date.parse(match.matchTime);
-                if (!isNaN(closeTimestamp) && Date.now() > closeTimestamp) {
+                const threeHoursInMs = 3 * 60 * 60 * 1000;
+                const adjustedCloseTimestamp = closeTimestamp - threeHoursInMs;
+
+                if (!isNaN(adjustedCloseTimestamp) && Date.now() > adjustedCloseTimestamp) {
                     db.run(`UPDATE matches SET status = 'closed' WHERE matchId = ?`, [matchId]);
-                    // 🚨 التعديل الجوهري الحاسم هنا: إضافة الـ return يوقف الكود ويمنع حفظ التوقع نهائياً!
                     return interaction.reply({ content: '⏰ نأسف، انتهى الوقت المسموح به لهذه المباراة أثناء كتابتك للتوقع، تم رفض الإرسال وعملية التعديل.', ephemeral: true });
                 }
 
