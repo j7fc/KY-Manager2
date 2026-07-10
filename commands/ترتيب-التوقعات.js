@@ -1,7 +1,7 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 
-// 🚨 يستدعي ملف الداتابيز الموحد من نفس المجلد
-const db = require('./database.js');
+// 🚨 تم التعديل: الرجوع خطوة للخلف لقراءة ملف الداتابيز الموحد من المجلد الرئيسي
+const db = require('../database.js');
 
 module.exports = {
     data: new SlashCommandBuilder()

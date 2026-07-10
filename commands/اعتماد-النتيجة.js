@@ -1,7 +1,7 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 
-// استدعاء ملف الداتابيز الموحد من نفس المجلد
-const db = require('./database.js');
+// 🚨 تم التعديل: الرجوع خطوة للخلف لقراءة ملف الداتابيز الموحد من المجلد الرئيسي
+const db = require('../database.js');
 
 // 1️⃣ دالة ذكية لتنظيف وتوحيد أسماء الفرق وتقليل الأخطاء الإملائية والمسافات
 function cleanText(text) {
