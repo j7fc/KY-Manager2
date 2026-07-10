@@ -2,8 +2,8 @@ const fs = require('fs');
 const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
 
-// 🚨 تم الربط بملف الداتابيز الموحد بداخل مجلد الأوامر لضمان حفظ البيانات
-const db = require('./commands/database.js'); 
+// 🚨 تم التعديل: استدعاء قاعدة البيانات الموحدة مباشرة من المجلد الرئيسي للبوت لحل مشكلة MODULE_NOT_FOUND
+const db = require('./database.js'); 
 
 // الاتصال بقاعدة بيانات النقاط الأساسية القديمة للسيرفر (points.db) 
 const dbPointsPath = path.join(__dirname, 'points.db');
