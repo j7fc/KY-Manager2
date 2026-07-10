@@ -9,19 +9,23 @@ module.exports = {
         .setDescription('عرض لوحة صدارة مسابقة التوقعات لجميع الأعضاء المشاركين بالكامل'),
 
     async execute(interaction) {
+        // الرد المبدئي السريع لمنع ظهور "التطبيق لا يستجيب"
         await interaction.deferReply();
 
-        // 🛠️ خطوة أمان: التأكد من إنشاء الجدول بالأعمدة الصحيحة أولاً لمنع خطأ جلب البيانات
-        db.serialize(() => {
-            db.run(`CREATE TABLE IF NOT EXISTS tournament_points (
-                userId TEXT PRIMARY KEY,
-                points INTEGER DEFAULT 0,
-                exactMatches INTEGER DEFAULT 0,
-                winnerOnlyMatches INTEGER DEFAULT 0,
-                wrongMatches INTEGER DEFAULT 0
-            )`);
+        // 1️⃣ إنشاء الجدول فوراً إذا لم يكن موجوداً خطوة أمان سريعة
+        db.run(`CREATE TABLE IF NOT EXISTS tournament_points (
+            userId TEXT PRIMARY KEY,
+            points INTEGER DEFAULT 0,
+            exactMatches INTEGER DEFAULT 0,
+            winnerOnlyMatches INTEGER DEFAULT 0,
+            wrongMatches INTEGER DEFAULT 0
+        )`, (createErr) => {
+            if (createErr) {
+                console.error("🚨 خطأ أثناء إنشاء الجدول:", createErr);
+                return interaction.editReply({ content: '❌ حدث خطأ داخلي في تهيئة قاعدة البيانات.' });
+            }
 
-            // جلب البيانات بعد التأكد من سلامة الجدول
+            // 2️⃣ جلب البيانات مباشرة بعد التأكد من الجدول
             db.all(`SELECT userId, points, exactMatches, winnerOnlyMatches FROM tournament_points ORDER BY points DESC`, async (err, rows) => {
                 if (err) {
                     console.error("🚨 خطأ أثناء جلب لوحة الصدارة:", err);
@@ -40,7 +44,7 @@ module.exports = {
 
                 let leaderboardText = '';
 
-                // حلقة تكرارية تعرض جميع الأعضاء المسجلين بالكامل
+                // عرض جميع الصفوف بالكامل بدون ليميت 10 أعضاء
                 for (let i = 0; i < rows.length; i++) {
                     const rank = i + 1;
                     let medal = `\`#${rank}\``;
