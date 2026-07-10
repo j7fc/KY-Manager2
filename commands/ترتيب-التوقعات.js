@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 
-// 🚨 تم التعديل: الرجوع خطوة للخلف لقراءة ملف الداتابيز الموحد من المجلد الرئيسي
+// 🚨 استدعاء ملف الداتابيز الموحد من المجلد الرئيسي
 const db = require('../database.js');
 
 module.exports = {
@@ -11,48 +11,56 @@ module.exports = {
     async execute(interaction) {
         await interaction.deferReply();
 
-        // تم تعديل الاستعلام لجلب تفاصيل عدد التوقعات الصحيحة أيضاً لجمالية العرض وزيادة الحماس
-        db.all(`SELECT userId, points, exactMatches, winnerOnlyMatches FROM tournament_points ORDER BY points DESC`, async (err, rows) => {
-            if (err) {
-                console.error("🚨 خطأ أثناء جلب لوحة الصدارة:", err);
-                return interaction.editReply({ content: '❌ حدث خطأ أثناء جلب بيانات لوحة الصدارة من قاعدة البيانات.' });
-            }
+        // 🛠️ خطوة أمان: التأكد من إنشاء الجدول بالأعمدة الصحيحة أولاً لمنع خطأ جلب البيانات
+        db.serialize(() => {
+            db.run(`CREATE TABLE IF NOT EXISTS tournament_points (
+                userId TEXT PRIMARY KEY,
+                points INTEGER DEFAULT 0,
+                exactMatches INTEGER DEFAULT 0,
+                winnerOnlyMatches INTEGER DEFAULT 0,
+                wrongMatches INTEGER DEFAULT 0
+            )`);
 
-            if (!rows || rows.length === 0) {
-                const emptyEmbed = new EmbedBuilder()
+            // جلب البيانات بعد التأكد من سلامة الجدول
+            db.all(`SELECT userId, points, exactMatches, winnerOnlyMatches FROM tournament_points ORDER BY points DESC`, async (err, rows) => {
+                if (err) {
+                    console.error("🚨 خطأ أثناء جلب لوحة الصدارة:", err);
+                    return interaction.editReply({ content: `❌ حدث خطأ أثناء جلب بيانات لوحة الصدارة: \`${err.message}\`` });
+                }
+
+                if (!rows || rows.length === 0) {
+                    const emptyEmbed = new EmbedBuilder()
+                        .setTitle('🏆 لوحة صدارة مسابقة التوقعات 📊')
+                        .setDescription('ℹ️ لا توجد نقاط مسجلة لأي عضو حتى الآن. ابدأ باعتماد نتائج المباريات لتظهر الصدارة هنا!')
+                        .setColor('Blurple')
+                        .setTimestamp();
+                    
+                    return interaction.editReply({ embeds: [emptyEmbed] });
+                }
+
+                let leaderboardText = '';
+
+                // حلقة تكرارية تعرض جميع الأعضاء المسجلين بالكامل
+                for (let i = 0; i < rows.length; i++) {
+                    const rank = i + 1;
+                    let medal = `\`#${rank}\``;
+                    if (i === 0) medal = '🥇';
+                    if (i === 1) medal = '🥈';
+                    if (i === 2) medal = '🥉';
+
+                    leaderboardText += `${medal} <@${rows[i].userId}> — **${rows[i].points}** نقطة\n`;
+                    leaderboardText += `└ 🎯 بالملي: \`${rows[i].exactMatches || 0}\` | 👑 فائز فقط: \`${rows[i].winnerOnlyMatches || 0}\`\n\n`;
+                }
+
+                const embed = new EmbedBuilder()
                     .setTitle('🏆 لوحة صدارة مسابقة التوقعات 📊')
-                    .setDescription('ℹ️ لا توجد نقاط مسجلة لأي عضو حتى الآن. ابدأ باعتماد نتائج المباريات لتظهر الصدارة هنا!')
+                    .setDescription(leaderboardText)
                     .setColor('Blurple')
-                    .setTimestamp();
-                
-                return interaction.editReply({ embeds: [emptyEmbed] });
-            }
+                    .setTimestamp()
+                    .setFooter({ text: 'يتم تحديث الترتيب تلقائياً بعد كل مباراة' });
 
-            let leaderboardText = '';
-
-            // تعديل: الحلقات التكرارية تعرض الآن جميع الصفوف المتواجدة بالداتابيز دون حد معين (سواء 10 أو 30 أو أكثر)
-            for (let i = 0; i < rows.length; i++) {
-                const rank = i + 1;
-                let medal = `\`#${rank}\``;
-                if (i === 0) medal = '🥇';
-                if (i === 1) medal = '🥈';
-                if (i === 2) medal = '🥉';
-
-                leaderboardText += `${medal} <@${rows[i].userId}> — **${rows[i].points}** نقطة\n`;
-                // إضافة تفاصيل التوقعات بالملي والفائز فقط تحت كل عضو لإعطاء مظهر احترافي ومفصل للجدول العام
-                leaderboardText += `└ 🎯 بالملي: \`${rows[i].exactMatches || 0}\` | 👑 فائز فقط: \`${rows[i].winnerOnlyMatches || 0}\`\n\n`;
-            }
-
-            const embed = new EmbedBuilder()
-                .setTitle('🏆 لوحة صدارة مسابقة التوقعات 📊')
-                .setDescription(leaderboardText)
-                .setColor('Blurple')
-                .setTimestamp()
-                .setFooter({ text: 'يتم تحديث الترتيب تلقائياً بعد كل مباراة' });
-
-            // 💡 تم حذف حقل "ترتيبك الحالي" بالكامل من هنا لكي تظهر الرسالة عامة وصحيحة للجميع دون لخبطة.
-
-            await interaction.editReply({ embeds: [embed] });
+                await interaction.editReply({ embeds: [embed] });
+            });
         });
     }
 };
