@@ -3,7 +3,18 @@ const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 // استدعاء ملف الداتابيز الموحد من نفس المجلد
 const db = require('./database.js');
 
-// دالة برمجية ذكية لتوحيد ترتيب الأرقام (مثال: تحويل "1-2" و "2-1" إلى شكل موحد "1-2")
+// 1️⃣ دالة ذكية لتنظيف وتوحيد أسماء الفرق وتقليل الأخطاء الإملائية والمسافات
+function cleanText(text) {
+    if (!text) return '';
+    return text
+        .trim()                              // إزالة المسافات من الأطراف
+        .replace(/\s+/g, '')                 // إزالة أي مسافات داخلية
+        .replace(/[أإآأ]/g, 'ا')             // توحيد الألفات (أحمد/احمد)
+        .replace(/ة/g, 'ه')                  // توحيد التاء المربوطة والهاء (المباراة/المباراه)
+        .replace(/^(ال)/, '');               // إزالة "ال" التعريف لضمان التطابق (النصر -> نصر)
+}
+
+// 2️⃣ دالة برمجية ذكية لتوحيد ترتيب الأرقام (مثال: تحويل "1-2" و "2-1" إلى شكل موحد "1-2")
 function normalizeScore(scoreStr) {
     if (!scoreStr) return '';
     // تنظيف النص والإبقاء على الأرقام والواصلة فقط
@@ -37,10 +48,11 @@ module.exports = {
         }
 
         const matchId = interaction.options.getString('رقم_المباراة');
-        const actualWinner = interaction.options.getString('الفائز_الفعلي').trim();
-        const actualScore = interaction.options.getString('النتيجة_الفعلية').trim();
+        const actualWinner = interaction.options.getString('الفائز_الفعلي');
+        const actualScore = interaction.options.getString('النتيجة_الفعلية');
 
-        // توحيد النتيجة الفعلية المدخلة من الإدارة
+        // توحيد مدخلات الإدارة الحالية
+        const cleanedActualWinner = cleanText(actualWinner);
         const normalizedActualScore = normalizeScore(actualScore);
 
         await interaction.deferReply();
@@ -65,13 +77,14 @@ module.exports = {
                         let pointsGained = 0;
                         let isExact = 0, isWinnerOnly = 0, isWrong = 0;
 
-                        // توحيد نتيجة العضو قبل مقارنتها بنتيجة الإدارة الموحدة
+                        // توحيد مدخلات العضو وتوقعه الحالي
+                        const cleanedUserWinner = cleanText(p.winner);
                         const normalizedUserScore = normalizeScore(p.score);
 
-                        // الحسبة الجديدة: إذا الفائز صح والنتيجة الرقمية متطابقة (بغض النظر عن اتجاه الكتابة)
-                        if (p.winner === actualWinner && normalizedUserScore === normalizedActualScore) {
+                        // الحسبة الجديدة والمطورة: مقارنة النصوص والارقام بعد تنظيفها وتوحيد اتجاهها بالكامل
+                        if (cleanedUserWinner === cleanedActualWinner && normalizedUserScore === normalizedActualScore) {
                             pointsGained = 3 * multiplier; exactList.push(`<@${p.userId}>`); isExact = 1;
-                        } else if (p.winner === actualWinner) {
+                        } else if (cleanedUserWinner === cleanedActualWinner) {
                             pointsGained = 1 * multiplier; winnerOnlyList.push(`<@${p.userId}>`); isWinnerOnly = 1;
                         } else {
                             wrongList.push(`<@${p.userId}>`); isWrong = 1;
