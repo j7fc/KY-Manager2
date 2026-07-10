@@ -2,50 +2,13 @@ const fs = require('fs');
 const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
 
-// 🚨 الاتصال بقاعدة بيانات التوقعات والمباريات
-const dbPath = path.join(__dirname, 'predictions_final.sqlite');
-const db = new sqlite3.Database(dbPath);
+// 🚨 تم الربط بملف الداتابيز الموحد بداخل مجلد الأوامر لضمان حفظ البيانات
+const db = require('./commands/database.js'); 
 
-// 🚨 الاتصال بقاعدة بيانات النقاط الأساسية للسيرفر (points.db) لتوزيع مكافآت التوقعات عليها
+// الاتصال بقاعدة بيانات النقاط الأساسية القديمة للسيرفر (points.db) 
 const dbPointsPath = path.join(__dirname, 'points.db');
 const dbPoints = new sqlite3.Database(dbPointsPath);
 
-// 🛠️ إنشاء الجداول والتأكد من تهيئتها بالشكل الموحد الصحيح
-db.serialize(() => {
-    // 1. جدول المباريات
-    db.run(`CREATE TABLE IF NOT EXISTS matches (
-        matchId TEXT PRIMARY KEY,
-        team1 TEXT,
-        team2 TEXT,
-        matchTime TEXT,
-        status TEXT DEFAULT 'open',
-        channelId TEXT,
-        messageId TEXT,
-        doublePoints INTEGER DEFAULT 0
-    )`);
-
-    // 2. جدول التوقعات لضمان سرية وحفظ مشاركات الأعضاء
-    db.run(`CREATE TABLE IF NOT EXISTS predictions (
-        matchId TEXT,
-        userId TEXT,
-        winner TEXT,
-        score TEXT,
-        PRIMARY KEY (matchId, userId)
-    )`);
-
-    // 3. 🚨 جدول نقاط وإحصائيات المسابقة الموحد
-    db.run(`CREATE TABLE IF NOT EXISTS tournament_points (
-        userId TEXT PRIMARY KEY,
-        points INTEGER DEFAULT 0,
-        exactMatches INTEGER DEFAULT 0,
-        winnerOnlyMatches INTEGER DEFAULT 0,
-        wrongMatches INTEGER DEFAULT 0
-    )`);
-    
-    console.log('✅ قاعدة بيانات مسابقة التوقعات بجميع جداولها جاهزة للعمل بنسبة 100%!');
-});
-
-// التأكد من وجود جدول النقاط القديم في قاعدة بيانات السيرفر الأساسية
 dbPoints.serialize(() => {
     dbPoints.run(`CREATE TABLE IF NOT EXISTS users (
         userId TEXT PRIMARY KEY,
@@ -73,7 +36,6 @@ const client = new Client({
 
 client.commands = new Collection();
 
-// قراءة الأوامر من المجلدات الفرعية
 const commandsPath = path.join(__dirname, 'commands');
 
 function loadCommands(dir) {
@@ -109,7 +71,6 @@ client.on(Events.InteractionCreate, async interaction => {
     if (interaction.isButton()) {
         console.log('Button Clicked By:', interaction.user.id);
 
-        // تفاعل زر مسابقة التوقعات
         if (interaction.customId.startsWith('predict_btn_')) {
             const matchId = interaction.customId.split('_')[2];
 
@@ -118,17 +79,14 @@ client.on(Events.InteractionCreate, async interaction => {
                     return interaction.reply({ content: '❌ لم يتم العثور على هذه المباراة في قاعدة البيانات.', ephemeral: true });
                 }
 
-                // التحقق من حالة المباراة في الداتابيز
                 if (match.status !== 'open') {
                     return interaction.reply({ content: '⏰ نأسف، تم إغلاق التوقعات لهذه المباراة نهائياً وعبر الإدارة.', ephemeral: true });
                 }
 
-                // 🚨 تعديل الحسبة برمجياً: تحويل وقت السعودية المدخل ليتطابق مع خادم ريندر (طرح 3 ساعات)
                 const closeTimestamp = Date.parse(match.matchTime);
                 const threeHoursInMs = 3 * 60 * 60 * 1000; 
                 const adjustedCloseTimestamp = closeTimestamp - threeHoursInMs;
 
-                // فحص وقت الإغلاق التلقائي عند الضغط على الزر
                 if (!isNaN(adjustedCloseTimestamp) && Date.now() > adjustedCloseTimestamp) {
                     db.run(`UPDATE matches SET status = 'closed' WHERE matchId = ?`, [matchId]);
                     return interaction.reply({ content: '⏰ تم إغلاق التوقعات لهذه المباراة تلقائياً لانتهاء الوقت المحدد وعبر بداية اللقاء الحقيقي.', ephemeral: true });
@@ -164,7 +122,6 @@ client.on(Events.InteractionCreate, async interaction => {
             return;
         }
 
-        // رتب الحماية والصلاحيات لأزرار الإدارة القديمة والترقيات
         const ALLOWED_USER_ID = '1229374664107884597'; 
         const ALLOWED_ROLE_ID = '1511200506557632623'; 
 
@@ -229,14 +186,12 @@ client.on(Events.InteractionCreate, async interaction => {
         return;
     }
 
-    // استقبال بيانات الـ Modal وحفظها أو تعديلها الذكي
     if (interaction.isModalSubmit()) {
         if (interaction.customId.startsWith('predict_modal_')) {
             const matchId = interaction.customId.split('_')[2];
             const winner = interaction.fields.getTextInputValue('predicted_winner').trim();
             const score = interaction.fields.getTextInputValue('predicted_score').trim();
 
-            // 1. فحص إضافي صارم للوقت وحالة المباراة عند إرسال المودال مباشرة لمنع التلاعب
             db.get(`SELECT * FROM matches WHERE matchId = ?`, [matchId], (matchErr, match) => {
                 if (matchErr || !match) {
                     return interaction.reply({ content: '❌ لم يتم العثور على هذه المباراة في قاعدة البيانات.', ephemeral: true });
@@ -246,7 +201,6 @@ client.on(Events.InteractionCreate, async interaction => {
                     return interaction.reply({ content: '⏰ نأسف، تم إغلاق التوقعات لهذه المباراة ولا يمكن استقبال توقعك.', ephemeral: true });
                 }
 
-                // 🚨 تطبيق طرح الـ 3 ساعات هنا أيضاً لحماية المودال عند الإرسال الفعلي
                 const closeTimestamp = Date.parse(match.matchTime);
                 const threeHoursInMs = 3 * 60 * 60 * 1000;
                 const adjustedCloseTimestamp = closeTimestamp - threeHoursInMs;
@@ -256,9 +210,8 @@ client.on(Events.InteractionCreate, async interaction => {
                     return interaction.reply({ content: '⏰ نأسف، انتهى الوقت المسموح به لهذه المباراة أثناء كتابتك للتوقع، تم رفض الإرسال وعملية التعديل.', ephemeral: true });
                 }
 
-                // 2. التحقق المسبق لمعرفة إذا كان العضو يملك توقعاً قديماً لتعديل الرسالة
                 db.get(`SELECT * FROM predictions WHERE matchId = ? AND userId = ?`, [matchId, interaction.user.id], (predErr, existingPred) => {
-                    const isUpdate = !!existingPred; // تصبح true إذا وجدنا سجل قديم للعضو
+                    const isUpdate = !!existingPred;
 
                     db.run(
                         `INSERT INTO predictions (matchId, userId, winner, score) VALUES (?, ?, ?, ?)
@@ -270,7 +223,6 @@ client.on(Events.InteractionCreate, async interaction => {
                                 return interaction.reply({ content: `❌ حدث خطأ أثناء حفظ توقعك بسبب:\n\`${err.message}\``, ephemeral: true });
                             }
                             
-                            // تخصيص نص الرسالة حسب الحالة
                             if (isUpdate) {
                                 return interaction.reply({
                                     content: `⚙️ <@${interaction.user.id}>، **تم تعديل توقعك بنجاح** للمباراة **#${matchId}**!\n🎯 **التوقع الجديد:** الفائز: \`${winner}\` | النتيجة: \`${score}\`\n*(ملاحظة: يمكنك تعديل توقعك مجدداً في أي وقت قبل بداية اللقاء)*`,
@@ -303,7 +255,6 @@ client.on(Events.InteractionCreate, async interaction => {
     }
 });
 
-// خادم الويب الأساسي لمنع استضافة Render من النوم والدخول في وضع الخمول
 const http = require('http');
 http.createServer((req, res) => {
     res.write("Bot is running 24/7");

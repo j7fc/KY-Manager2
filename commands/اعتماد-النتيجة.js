@@ -1,9 +1,7 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const path = require('path');
-const sqlite3 = require('sqlite3').verbose();
 
-const dbPath = path.join(__dirname, '..', 'predictions_final.sqlite');
-const db = new sqlite3.Database(dbPath);
+// 🚨 تم التعديل: يستدعي ملف الداتابيز الموحد من نفس المجلد
+const db = require('./database.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -54,7 +52,6 @@ module.exports = {
                             wrongList.push(`<@${p.userId}>`); isWrong = 1;
                         }
 
-                        // 🚨 التعديل الذهبي هنا: تغيير اسم الجدول إلى tournament_points ليطابق كود الترتيب و index.js
                         db.run(`INSERT INTO tournament_points (userId, points, exactMatches, winnerOnlyMatches, wrongMatches) 
                                 VALUES (?, ?, ?, ?, ?)
                                 ON CONFLICT(userId) DO UPDATE SET 
