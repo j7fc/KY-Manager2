@@ -2,7 +2,7 @@ const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
 
-// ربط مباشر وصارم بملف الداتابيز الصحيح في المجلد الرئيسي
+// 🚨 ربط مباشر وصارم بملف الداتابيز الموحد الصحيح في المجلد الرئيسي
 const dbPath = path.join(__dirname, '..', 'predictions_final.sqlite');
 const db = new sqlite3.Database(dbPath);
 
@@ -24,42 +24,33 @@ module.exports = {
 
         const subcommand = interaction.options.getSubcommand();
 
+        // 📝 لمنع مشكلة "الموقع لا يستجيب"، نقوم بعمل رد مبدئي سريع
+        await interaction.deferReply({ ephemeral: subcommand === 'إضافة-نقاط' || subcommand === 'خصم-نقاط' });
+
         if (subcommand === 'إضافة-نقاط' || subcommand === 'خصم-نقاط') {
             const targetUser = interaction.options.getUser('العضو');
             let pointsChange = interaction.options.getInteger('النقاط');
-            const displayPoints = pointsChange; // للعرض الرقمي الموجب
+            const displayPoints = pointsChange;
             
             if (subcommand === 'خصم-نقاط') pointsChange = -pointsChange;
 
-            await interaction.deferReply({ ephemeral: true });
-
-            // 1️⃣ فحص هل العضو مسجل مسبقاً في جدول الصدارة أم لا
             db.get(`SELECT points FROM tournament_points WHERE userId = ?`, [targetUser.id], (searchErr, row) => {
                 if (searchErr) {
-                    console.error("🚨 خطأ أثناء البحث عن العضو:", searchErr);
-                    return interaction.editReply({ content: '❌ حدث خطأ أثناء فحص بيانات العضو في الداتابيز.' });
+                    console.error(searchErr);
+                    return interaction.editReply({ content: '❌ حدث خطأ أثناء فحص بيانات العضو.' });
                 }
 
                 if (row) {
-                    // 2️⃣ إذا كان العضو موجوداً، قم بعمل UPDATE مباشر ونظيف لصحته
                     const newPoints = row.points + pointsChange;
                     db.run(`UPDATE tournament_points SET points = ? WHERE userId = ?`, [newPoints, targetUser.id], (updateErr) => {
-                        if (updateErr) {
-                            console.error("🚨 خطأ أثناء تحديث نقاط العضو الحالية:", updateErr);
-                            return interaction.editReply({ content: '❌ حدث خطأ أثناء تحديث نقاط العضو الحالية.' });
-                        }
+                        if (updateErr) return interaction.editReply({ content: '❌ حدث خطأ أثناء تحديث النقاط.' });
                         return sendSuccessEmbed(interaction, subcommand, displayPoints, targetUser);
                     });
                 } else {
-                    // 3️⃣ إذا لم يكن موجوداً، قم بعمل INSERT عادي ومبسط جداً
-                    // نقاط البدء لا يمكن أن تكون أقل من صفر في الحسبة الطبيعية
                     const startingPoints = pointsChange < 0 ? 0 : pointsChange; 
                     db.run(`INSERT INTO tournament_points (userId, points, exactMatches, winnerOnlyMatches, wrongMatches) VALUES (?, ?, 0, 0, 0)`, 
                     [targetUser.id, startingPoints], (insertErr) => {
-                        if (insertErr) {
-                            console.error("🚨 خطأ أثناء إدخال العضو الجديد للمرة الأولى:", insertErr);
-                            return interaction.editReply({ content: '❌ حدث خطأ أثناء تسجيل العضو الجديد بنقاطه الأولى.' });
-                        }
+                        if (insertErr) return interaction.editReply({ content: '❌ حدث خطأ أثناء تسجيل النقاط لأول مرة.' });
                         return sendSuccessEmbed(interaction, subcommand, displayPoints, targetUser);
                     });
                 }
@@ -68,22 +59,25 @@ module.exports = {
 
         if (subcommand === 'حذف-مباراة') {
             const matchId = interaction.options.getString('رقم_المباراة');
-            db.run(`DELETE FROM matches WHERE matchId = ?`, [matchId]);
-            db.run(`DELETE FROM predictions WHERE matchId = ?`, [matchId]);
-            return interaction.reply({ content: `🗑️ تم حذف المباراة رقم \`#${matchId}\` وإلغاء كافة التوقعات المسجلة لها نهائياً.` });
+            
+            // تنفيذ الحذف بشكل متتالي وآمن
+            db.run(`DELETE FROM matches WHERE matchId = ?`, [matchId], (err1) => {
+                db.run(`DELETE FROM predictions WHERE matchId = ?`, [matchId], (err2) => {
+                    return interaction.editReply({ content: `🗑️ تم حذف المباراة رقم \`#${matchId}\` وإلغاء كافة التوقعات المسجلة لها نهائياً من قاعدة البيانات الموحدة.` });
+                });
+            });
         }
 
         if (subcommand === 'قفل-التوقعات') {
             const matchId = interaction.options.getString('رقم_المباراة');
             db.run(`UPDATE matches SET status = 'closed' WHERE matchId = ?`, [matchId], (err) => {
-                if (err) return interaction.reply({ content: '❌ فشل قفل التوقعات.' });
-                return interaction.reply({ content: `🔒 تم قفل استقبال التوقعات للمباراة رقم \`#${matchId}\` يدوياً وفوراً.` });
+                if (err) return interaction.editReply({ content: '❌ فشل قفل التوقعات.' });
+                return interaction.editReply({ content: `🔒 تم قفل استقبال التوقعات للمباراة رقم \`#${matchId}\` يدوياً وفوراً.` });
             });
         }
     }
 };
 
-// دالة مساعدة لإنشاء وإرسال الإمبيد بنجاح تقليلاً لتكرار الكود
 function sendSuccessEmbed(interaction, subcommand, displayPoints, targetUser) {
     const isAdd = subcommand === 'إضافة-نقاط';
     const embed = new EmbedBuilder()

@@ -1,9 +1,12 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const path = require('path');
+const sqlite3 = require('sqlite3').verbose();
 
-// 🚨 تم التعديل: الرجوع خطوة للخلف لقراءة ملف الداتابيز الموحد من المجلد الرئيسي
-const db = require('../database.js');
+// 🚨 ربط صارم ومباشر بملف الداتابيز الموحد الصحيح في المجلد الرئيسي
+const dbPath = path.join(__dirname, '..', 'predictions_final.sqlite');
+const db = new sqlite3.Database(dbPath);
 
-// 1️⃣ دالة ذكية لتنظيف وتوحيد أسماء الفرق وتقليل الأخطاء الإملائية والمسافات
+// 1️⃣ دالة تنظيف وتوحيد أسماء الفرق وتقليل الأخطاء الإملائية والمسافات
 function cleanText(text) {
     if (!text) return '';
     return text
@@ -14,18 +17,15 @@ function cleanText(text) {
         .replace(/^(ال)/, '');               // إزالة "ال" التعريف لضمان التطابق (النصر -> نصر)
 }
 
-// 2️⃣ دالة برمجية ذكية لتوحيد ترتيب الأرقام (مثال: تحويل "1-2" و "2-1" إلى شكل موحد "1-2")
+// 2️⃣ دالة توحيد ترتيب الأرقام (مثال: تحويل "1-2" و "2-1" إلى شكل موحد "1-2")
 function normalizeScore(scoreStr) {
     if (!scoreStr) return '';
-    // تنظيف النص والإبقاء على الأرقام والواصلة فقط
     const clean = scoreStr.replace(/\s+/g, '');
-    // فصل الرقمين
     const parts = clean.split('-');
     if (parts.length === 2) {
         const num1 = parseInt(parts[0], 10);
         const num2 = parseInt(parts[1], 10);
         if (!isNaN(num1) && !isNaN(num2)) {
-            // ترتيب الأرقام تلقائياً من الأصغر للأكبر لضمان التطابق بغض النظر عن الاتجاه
             return num1 < num2 ? `${num1}-${num2}` : `${num2}-${num1}`;
         }
     }
@@ -37,7 +37,7 @@ module.exports = {
         .setName('اعتماد-النتيجة')
         .setDescription('اعتماد النتيجة النهائية للمباراة وتوزيع النقاط على التوقعات الصحيحة')
         .addStringOption(option => option.setName('رقم_المباراة').setDescription('رقم المباراة الحالية').setRequired(true))
-        .addStringOption(option => option.setName('الفائز_الفعلي').setDescription('اسم الفريق الفائز أو تعادل بالظبط').setRequired(true))
+        .addStringOption(option => option.setName('الفائز_الفعلي').setDescription('اسم الفريق الفائز أو تعادل بالضبط').setRequired(true))
         .addStringOption(option => option.setName('النتيجة_الفعلية').setDescription('النتيجة الحقيقية مثل: 2-1').setRequired(true)),
 
     async execute(interaction) {
@@ -51,20 +51,19 @@ module.exports = {
         const actualWinner = interaction.options.getString('الفائز_الفعلي');
         const actualScore = interaction.options.getString('النتيجة_الفعلية');
 
-        // توحيد مدخلات الإدارة الحالية
         const cleanedActualWinner = cleanText(actualWinner);
         const normalizedActualScore = normalizeScore(actualScore);
 
         await interaction.deferReply();
 
         db.get(`SELECT * FROM matches WHERE matchId = ?`, [matchId], (err, match) => {
-            if (err || !match) return interaction.editReply({ content: '❌ لم يتم العثور على المباراة.' });
+            if (err || !match) return interaction.editReply({ content: '❌ لم يتم العثور على المباراة في قاعدة البيانات الموحدة.' });
             if (match.status === 'rewarded') return interaction.editReply({ content: '⚠️ تم اعتماد نقاط هذه المباراة سابقاً.' });
 
             db.all(`SELECT * FROM predictions WHERE matchId = ?`, [matchId], async (predErr, rows) => {
                 if (predErr || !rows || rows.length === 0) {
                     db.run(`UPDATE matches SET status = 'rewarded' WHERE matchId = ?`, [matchId]);
-                    return interaction.editReply({ content: '🏁 انتهت المباراة ولم يشارك أحد بالتوقعات.' });
+                    return interaction.editReply({ content: '🏁 انتهت المباراة ولم يشارك أحد بالتوقعات في هذه الداتابيز.' });
                 }
 
                 let exactList = [];
@@ -72,36 +71,44 @@ module.exports = {
                 let wrongList = [];
                 const multiplier = match.doublePoints ? 2 : 1;
 
-                db.serialize(() => {
-                    rows.forEach(p => {
-                        let pointsGained = 0;
-                        let isExact = 0, isWinnerOnly = 0, isWrong = 0;
+                // معالجة وحفظ كل توقع بشكل آمن خطوة بخطوة لمنع الكراش والتعليق
+                for (const p of rows) {
+                    let pointsGained = 0;
+                    let isExact = 0, isWinnerOnly = 0, isWrong = 0;
 
-                        // توحيد مدخلات العضو وتوقعه الحالي
-                        const cleanedUserWinner = cleanText(p.winner);
-                        const normalizedUserScore = normalizeScore(p.score);
+                    const cleanedUserWinner = cleanText(p.winner);
+                    const normalizedUserScore = normalizeScore(p.score);
 
-                        // الحسبة الجديدة والمطورة: مقارنة النصوص والارقام بعد تنظيفها وتوحيد اتجاهها بالكامل
-                        if (cleanedUserWinner === cleanedActualWinner && normalizedUserScore === normalizedActualScore) {
-                            pointsGained = 3 * multiplier; exactList.push(`<@${p.userId}>`); isExact = 1;
-                        } else if (cleanedUserWinner === cleanedActualWinner) {
-                            pointsGained = 1 * multiplier; winnerOnlyList.push(`<@${p.userId}>`); isWinnerOnly = 1;
-                        } else {
-                            wrongList.push(`<@${p.userId}>`); isWrong = 1;
-                        }
+                    if (cleanedUserWinner === cleanedActualWinner && normalizedUserScore === normalizedActualScore) {
+                        pointsGained = 3 * multiplier; exactList.push(`<@${p.userId}>`); isExact = 1;
+                    } else if (cleanedUserWinner === cleanedActualWinner) {
+                        pointsGained = 1 * multiplier; winnerOnlyList.push(`<@${p.userId}>`); isWinnerOnly = 1;
+                    } else {
+                        wrongList.push(`<@${p.userId}>`); isWrong = 1;
+                    }
 
-                        db.run(`INSERT INTO tournament_points (userId, points, exactMatches, winnerOnlyMatches, wrongMatches) 
-                                VALUES (?, ?, ?, ?, ?)
-                                ON CONFLICT(userId) DO UPDATE SET 
-                                points = points + excluded.points,
-                                exactMatches = exactMatches + excluded.exactMatches,
-                                winnerOnlyMatches = winnerOnlyMatches + excluded.winnerOnlyMatches,
-                                wrongMatches = wrongMatches + excluded.wrongMatches`,
-                                [p.userId, pointsGained, isExact, isWinnerOnly, isWrong]
-                        );
+                    // الاستعلام الآمن البديل لـ ON CONFLICT لضمان الثبات الكامل
+                    await new Promise((resolve) => {
+                        db.get(`SELECT points, exactMatches, winnerOnlyMatches, wrongMatches FROM tournament_points WHERE userId = ?`, [p.userId], (searchErr, row) => {
+                            if (row) {
+                                // تحديث الحساب الحالي
+                                const nPoints = row.points + pointsGained;
+                                const nExact = row.exactMatches + isExact;
+                                const nWinner = row.winnerOnlyMatches + isWinnerOnly;
+                                const nWrong = row.wrongMatches + isWrong;
+
+                                db.run(`UPDATE tournament_points SET points = ?, exactMatches = ?, winnerOnlyMatches = ?, wrongMatches = ? WHERE userId = ?`,
+                                    [nPoints, nExact, nWinner, nWrong, p.userId], () => resolve());
+                            } else {
+                                // إنشاء سجل جديد كلياً
+                                db.run(`INSERT INTO tournament_points (userId, points, exactMatches, winnerOnlyMatches, wrongMatches) VALUES (?, ?, ?, ?, ?)`,
+                                    [p.userId, pointsGained, isExact, isWinnerOnly, isWrong], () => resolve());
+                            }
+                        });
                     });
-                });
+                }
 
+                // تحديث حالة اللقاء إلى تم التوزيع
                 db.run(`UPDATE matches SET status = 'rewarded' WHERE matchId = ?`, [matchId]);
 
                 const embed = new EmbedBuilder()
