@@ -1,7 +1,25 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 
-// 🚨 تم التعديل: يستدعي ملف الداتابيز الموحد من نفس المجلد
+// استدعاء ملف الداتابيز الموحد من نفس المجلد
 const db = require('./database.js');
+
+// دالة برمجية ذكية لتوحيد ترتيب الأرقام (مثال: تحويل "1-2" و "2-1" إلى شكل موحد "1-2")
+function normalizeScore(scoreStr) {
+    if (!scoreStr) return '';
+    // تنظيف النص والإبقاء على الأرقام والواصلة فقط
+    const clean = scoreStr.replace(/\s+/g, '');
+    // فصل الرقمين
+    const parts = clean.split('-');
+    if (parts.length === 2) {
+        const num1 = parseInt(parts[0], 10);
+        const num2 = parseInt(parts[1], 10);
+        if (!isNaN(num1) && !isNaN(num2)) {
+            // ترتيب الأرقام تلقائياً من الأصغر للأكبر لضمان التطابق بغض النظر عن الاتجاه
+            return num1 < num2 ? `${num1}-${num2}` : `${num2}-${num1}`;
+        }
+    }
+    return clean;
+}
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -21,6 +39,9 @@ module.exports = {
         const matchId = interaction.options.getString('رقم_المباراة');
         const actualWinner = interaction.options.getString('الفائز_الفعلي').trim();
         const actualScore = interaction.options.getString('النتيجة_الفعلية').trim();
+
+        // توحيد النتيجة الفعلية المدخلة من الإدارة
+        const normalizedActualScore = normalizeScore(actualScore);
 
         await interaction.deferReply();
 
@@ -44,7 +65,11 @@ module.exports = {
                         let pointsGained = 0;
                         let isExact = 0, isWinnerOnly = 0, isWrong = 0;
 
-                        if (p.winner === actualWinner && p.score === actualScore) {
+                        // توحيد نتيجة العضو قبل مقارنتها بنتيجة الإدارة الموحدة
+                        const normalizedUserScore = normalizeScore(p.score);
+
+                        // الحسبة الجديدة: إذا الفائز صح والنتيجة الرقمية متطابقة (بغض النظر عن اتجاه الكتابة)
+                        if (p.winner === actualWinner && normalizedUserScore === normalizedActualScore) {
                             pointsGained = 3 * multiplier; exactList.push(`<@${p.userId}>`); isExact = 1;
                         } else if (p.winner === actualWinner) {
                             pointsGained = 1 * multiplier; winnerOnlyList.push(`<@${p.userId}>`); isWinnerOnly = 1;
