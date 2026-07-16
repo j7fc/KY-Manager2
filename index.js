@@ -104,61 +104,6 @@ client.once(Events.ClientReady, () => {
     console.log(`تم تشغيل البوت بنجاح: ${client.user.tag}`);
 });
 
-// 📊 كود مؤقت لطباعة النقاط كنص آمن داخل روم الديسكورد فور تشغيل البوت
-client.on(Events.ClientReady, async () => {
-    try {
-        const backupChannelId = '1527216191372791941'; 
-        const channel = await client.channels.fetch(backupChannelId);
-        
-        if (channel) {
-            let reportMessage = `📊 **تقرير النقاط الحالي والأخير من السيرفر (نسخة نصية آمنة)**\n`;
-            reportMessage += `_تم استخراجها تلقائياً لتسهيل النقل_\n\n`;
-
-            // 1. جلب نقاط التوقعات
-            db.all(`SELECT userId, points, exactMatches, winnerOnlyMatches FROM tournament_points ORDER BY points DESC`, async (err, rows) => {
-                if (err) {
-                    console.error("🚨 خطأ أثناء جلب نقاط التوقعات للتقرير:", err);
-                    reportMessage += `❌ **نقاط مسابقة التوقعات:** تعذر جلب البيانات بسبب خطأ.\n\n`;
-                } else if (!rows || rows.length === 0) {
-                    reportMessage += `🏆 **نقاط مسابقة التوقعات (tournament_points):** لا توجد نقاط مسجلة حالياً.\n\n`;
-                } else {
-                    reportMessage += `🏆 **نقاط مسابقة التوقعات (tournament_points):**\n`;
-                    rows.forEach(row => {
-                        reportMessage += `• <@${row.userId}> (\`${row.userId}\`) -> **${row.points}** نقطة (🎯 بالملي: \`${row.exactMatches || 0}\` | 👑 فائز فقط: \`${row.winnerOnlyMatches || 0}\`)\n`;
-                    });
-                    reportMessage += `\n`;
-                }
-
-                // 2. جلب نقاط الإدارة
-                dbPoints.all(`SELECT userId, points FROM users ORDER BY points DESC`, async (errPoints, rowsPoints) => {
-                    if (errPoints) {
-                        console.error("🚨 خطأ أثناء جلب نقاط الإدارة للتقرير:", errPoints);
-                        reportMessage += `❌ **نقاط الإدارة والرقابة:** تعذر جلب البيانات بسبب خطأ.\n`;
-                    } else if (!rowsPoints || rowsPoints.length === 0) {
-                        reportMessage += `👮 **نقاط الإدارة والرقابة (points.db):** لا توجد نقاط مسجلة حالياً لجهاز الإدارة.\n`;
-                    } else {
-                        reportMessage += `👮 **نقاط الإدارة والرقابة (points.db):**\n`;
-                        rowsPoints.forEach(row => {
-                            reportMessage += `• <@${row.userId}> (\`${row.userId}\`) -> **${row.points}** نقطة\n`;
-                        });
-                    }
-
-                    // إرسال التقرير النهائي للروم
-                    if (reportMessage.length > 2000) {
-                        await channel.send({ content: reportMessage.substring(0, 1999) });
-                        await channel.send({ content: reportMessage.substring(1999) });
-                    } else {
-                        await channel.send({ content: reportMessage });
-                    }
-                    console.log('✅ تم إرسال تقرير النقاط النصي إلى ديسكورد بنجاح!');
-                });
-            });
-        }
-    } catch (err) {
-        console.error('🚨 فشل إرسال التقرير النصي للديسكورد:', err);
-    }
-});
-
 client.on(Events.InteractionCreate, async interaction => {
 
     if (interaction.isButton()) {
